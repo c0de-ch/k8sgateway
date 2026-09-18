@@ -1,0 +1,231 @@
+<!doctype html>
+<!--
+  Deterministic animation: an application in Kubernetes behind Envoy Gateway
+  (or an Ingress) logging a user in with OAuth 2.1 + OpenID Connect against an
+  external identity provider. Three phases: SETUP (keys, client registration,
+  discovery), LOGIN (redirect, authentication, code, tokens, claims and roles),
+  API (bearer call, verification, refresh). render(t) draws second t;
+  render.mjs captures the frames: node docs/images/animation/render.mjs login-flow-k8s.html login-flow-k8s.gif
+-->
+<meta charset="utf-8">
+<title>Login through the gateway with OAuth 2.1 + OIDC - setup, tokens, claims</title>
+<style>
+  html, body { margin: 0; background: #f8fafc; font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  svg { display: block; width: 1200px; height: 612px; }
+  .box { fill: #ffffff; stroke-width: 2; rx: 12; }
+  .title { font-size: 14px; font-weight: 700; fill: #1f2937; }
+  .sub { font-size: 11px; fill: #6b7280; }
+  .slot { font-size: 11.5px; fill: #1f2937; }
+  .slot-label { font-size: 10.5px; fill: #6b7280; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .caption { font-size: 14.5px; fill: #1f2937; }
+  .phase { font-size: 11px; font-weight: 700; fill: #ffffff; letter-spacing: .5px; }
+  .packet { font-size: 11.5px; fill: #1f2937; }
+  .lane { stroke: #e5e7eb; stroke-width: 1.5; stroke-dasharray: 4 4; }
+  .lane-label { font-size: 10px; fill: #9ca3af; }
+</style>
+<svg id="scene" viewBox="0 0 1200 612" xmlns="http://www.w3.org/2000/svg"></svg>
+<script>
+const NS = 'http://www.w3.org/2000/svg';
+const svg = document.getElementById('scene');
+const el = (tag, attrs = {}, text, parent = svg) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); if (text !== undefined) e.textContent = text; parent.appendChild(e); return e; };
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const ease = p => p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+const lerp = (a, b, p) => a + (b - a) * p;
+
+// ---- cluster boundary ---------------------------------------------------------
+el('rect', { x: 235, y: 44, width: 665, height: 470, rx: 16, fill: '#f1f5f9', stroke: '#94a3b8', 'stroke-dasharray': '6 5', 'stroke-width': 1.5 });
+el('text', { class: 'title', x: 250, y: 66, fill: '#475569' }, 'Kubernetes cluster (kind)');
+el('text', { class: 'sub', x: 478, y: 66 }, 'hostnames *.127.0.0.1.nip.io enter through the gateway - pods resolve them to it as well (CoreDNS rewrite)');
+
+// ---- parties ------------------------------------------------------------------
+const BOX_Y = 84, BOX_H = 284;
+const P = {
+  browser: { x: 20, w: 190, color: '#2563eb', title: 'Browser', sub: 'the user, outside the cluster' },
+  gateway: { x: 250, w: 150, color: '#0ea5e9', title: 'Envoy Gateway', sub: 'or an Ingress controller' },
+  app:     { x: 420, w: 250, color: '#7c3aed', title: 'Application pod', sub: 'Next.js BFF (confidential client)' },
+  api:     { x: 690, w: 190, color: '#9333ea', title: 'REST API pod', sub: 'resource server' },
+  idp:     { x: 930, w: 250, color: '#16a34a', title: 'Identity provider', sub: 'Keycloak · Entra ID · Oracle IAM' },
+};
+for (const [k, p] of Object.entries(P)) {
+  p.cx = p.x + p.w / 2;
+  p.rect = el('rect', { class: 'box', x: p.x, y: BOX_Y, width: p.w, height: BOX_H, stroke: p.color });
+  el('rect', { x: p.x, y: BOX_Y, width: p.w, height: 6, fill: p.color, rx: 3 });
+  el('text', { class: 'title', x: p.x + 12, y: BOX_Y + 28 }, p.title);
+  el('text', { class: 'sub', x: p.x + 12, y: BOX_Y + 45 }, p.sub);
+}
+function key(x, y, color, label, parent = svg) {
+  const g = el('g', { transform: `translate(${x},${y})` }, undefined, parent);
+  el('circle', { cx: 0, cy: 0, r: 5.5, fill: 'none', stroke: color, 'stroke-width': 2.5 }, undefined, g);
+  el('path', { d: 'M5.5 0 H20 M14 0 V4.5 M18 0 V3.5', stroke: color, 'stroke-width': 2.5, fill: 'none', 'stroke-linecap': 'round' }, undefined, g);
+  if (label) el('text', { class: 'slot', x: 27, y: 4 }, label, g);
+  return g;
+}
+const lines = {}; // named multi-line text areas inside boxes
+function area(name, party, y, n, cls = 'slot mono') {
+  const p = P[party]; lines[name] = [];
+  for (let i = 0; i < n; i++) lines[name].push(el('text', { class: cls, x: p.x + 12, y: y + i * 16 }, ''));
+}
+const setLines = (name, arr) => lines[name].forEach((t, i) => { t.textContent = arr[i] ?? ''; });
+
+// browser internals
+area('browser', 'browser', BOX_Y + 70, 9, 'slot');
+// gateway internals
+area('gateway', 'gateway', BOX_Y + 70, 9, 'slot');
+// app internals
+el('text', { class: 'slot-label', x: P.app.x + 12, y: BOX_Y + 64 }, 'ConfigMap / Secret');
+area('appcfg', 'app', BOX_Y + 80, 3);
+el('text', { class: 'slot-label', x: P.app.x + 12, y: BOX_Y + 132 }, 'learned from the IdP');
+area('applearn', 'app', BOX_Y + 148, 3);
+el('text', { class: 'slot-label', x: P.app.x + 12, y: BOX_Y + 200 }, 'session / claims');
+area('appsess', 'app', BOX_Y + 216, 4);
+// api internals
+area('api', 'api', BOX_Y + 70, 9);
+// idp internals
+const idpPriv = key(P.idp.x + 18, BOX_Y + 70, '#dc2626', 'private key (signs tokens)');
+const idpPub = key(P.idp.x + 18, BOX_Y + 92, '#16a34a', 'public keys → /jwks');
+area('idp', 'idp', BOX_Y + 118, 8);
+
+// ---- lanes ----------------------------------------------------------------------
+const LANE_REQ = 405, LANE_BACK = 450, LANE_FRONT = 495;
+for (const [y, l] of [[LANE_REQ, 'requests through the gateway'], [LANE_BACK, 'back channel (server to server)'], [LANE_FRONT, 'front channel (browser ↔ IdP)']]) {
+  el('line', { class: 'lane', x1: 40, y1: y, x2: 1160, y2: y });
+  el('text', { class: 'lane-label', x: 40, y: y - 6 }, l);
+}
+const packets = [];
+function packet(from, to, lane, t0, t1, label, kind = 'plain') {
+  const g = el('g', { opacity: 0 });
+  const w = Math.max(140, label.length * 7.0 + 44 + (kind !== 'plain' ? 26 : 0));
+  const stroke = { plain: '#2563eb', signed: '#d97706', pubkey: '#16a34a', secret: '#dc2626', tampered: '#dc2626' }[kind];
+  const fill = { plain: '#eff6ff', signed: '#fffbeb', pubkey: '#f0fdf4', secret: '#fef2f2', tampered: '#fef2f2' }[kind];
+  el('rect', { x: -w / 2, y: -15, width: w, height: 30, rx: 15, fill, stroke, 'stroke-width': 1.5 }, undefined, g);
+  el('text', { class: 'packet mono', 'text-anchor': 'middle', y: 4, x: kind !== 'plain' ? 10 : 0 }, label, g);
+  if (kind !== 'plain') {
+    el('circle', { cx: -w / 2 + 15, cy: 0, r: 8, fill: stroke }, undefined, g);
+    el('text', { x: -w / 2 + 15, y: 3.5, 'text-anchor': 'middle', 'font-size': kind === 'pubkey' ? '10' : '8', 'font-weight': '700', fill: '#fff' }, { signed: 'sig', pubkey: 'pk', secret: 'sec', tampered: '✗' }[kind], g);
+  }
+  const dir = P[to].cx > P[from].cx ? 1 : -1;
+  el('path', { d: `M${dir * (w / 2)} -6 l${dir * 9} 6 l${dir * -9} 6`, fill: 'none', stroke, 'stroke-width': 2 }, undefined, g);
+  packets.push({ g, from, to, lane, t0, t1, w });
+}
+
+// ---- timeline ---------------------------------------------------------------------
+const PH = { setup: '#0f766e', login: '#2563eb', api: '#7c3aed', end: '#1f2937' };
+const captions = [
+  [0, 3.5, '', 'end', 'Login through the gateway with OAuth 2.1 + OpenID Connect: setup, redirect, tokens, claims and roles'],
+  [3.5, 8, 'SETUP 1', 'setup', 'The IdP owns a key pair. It publishes its endpoints (/.well-known/openid-configuration) and its PUBLIC keys (/jwks).'],
+  [8, 13, 'SETUP 2', 'setup', 'The app is registered once: client_id, exact redirect_uri, a client_secret for this confidential client. A SPA gets no secret - PKCE only.'],
+  [13, 18.5, 'SETUP 3', 'setup', 'At start the app reads OIDC_ISSUER, fetches the discovery document and the public keys. No private key ever leaves the IdP.'],
+  [18.5, 23, 'LOGIN 1', 'login', 'No session cookie: the app answers 302 to the IdP with client_id, redirect_uri, scope=openid profile email, state, nonce and the PKCE challenge.'],
+  [23, 28, 'LOGIN 2', 'login', 'The browser talks to the IdP directly (front channel). The user authenticates there - password, MFA, SSO; the app never sees it.'],
+  [28, 32.5, 'LOGIN 3', 'login', 'The IdP redirects back to the exact redirect_uri with a one-time code and the state; the app checks state.'],
+  [32.5, 38.5, 'LOGIN 4', 'login', 'Back channel: the app exchanges code + code_verifier (+ client_secret). The IdP checks both and signs the tokens with its private key.'],
+  [38.5, 45, 'LOGIN 5', 'login', 'OIDC: the app verifies the ID token (public key, iss, aud=client_id, nonce) and reads the claims - identity from the scopes, roles/groups from the IdP mappers.'],
+  [45, 49.5, 'LOGIN 6', 'login', 'The tokens stay in an encrypted httpOnly session cookie; the page renders with the user\'s name and roles.'],
+  [49.5, 56.5, 'API 1', 'api', 'Calls to the API carry the access token. Envoy can pre-check it (SecurityPolicy, JWKS); the API always verifies signature, iss, aud, exp and roles itself.'],
+  [56.5, 61.5, 'API 2', 'api', 'OAuth 2.1: refresh tokens are rotated on use; a new access token arrives without the user noticing, the session lifetime is not extended.'],
+  [61.5, 66, '', 'end', 'Keys: private at the IdP, public everywhere. Secrets: only the confidential client\'s client_secret. Claims and roles: defined at the IdP, carried in signed tokens.'],
+];
+// SETUP
+packet('idp', 'app', LANE_BACK, 9.2, 12.2, 'client_id=nextjs-app · client_secret · redirect_uri (into a k8s Secret / ConfigMap)', 'secret');
+packet('app', 'idp', LANE_BACK, 13.4, 14.8, 'GET /.well-known/openid-configuration');
+packet('idp', 'app', LANE_BACK, 15, 16.2, 'authorization_endpoint · token_endpoint · userinfo · jwks_uri · end_session');
+packet('app', 'idp', LANE_BACK, 16.3, 17.1, 'GET /jwks');
+packet('idp', 'app', LANE_BACK, 17.2, 18.4, 'JWKS { kid: nPy6…, kty: RSA }', 'pubkey');
+// LOGIN
+packet('browser', 'app', LANE_REQ, 18.8, 20.6, 'GET /dashboard   (no session cookie)');
+packet('app', 'browser', LANE_REQ, 21, 22.9, '302 → IdP /authorize  client_id, redirect_uri, scope, state, nonce, code_challenge');
+packet('browser', 'idp', LANE_FRONT, 23.2, 25.2, 'GET /authorize …  (the user sees the IdP login page)');
+packet('idp', 'browser', LANE_FRONT, 28.2, 30.2, '302 redirect_uri ?code=8f3a… &state=xK9…');
+packet('browser', 'app', LANE_REQ, 30.5, 32.3, 'GET /api/auth/callback ?code &state');
+packet('app', 'idp', LANE_BACK, 32.8, 34.8, 'POST /token  code + code_verifier + client_id + client_secret', 'secret');
+packet('idp', 'app', LANE_BACK, 36.6, 38.4, 'access_token (JWT) · id_token (JWT) · refresh_token', 'signed');
+packet('app', 'idp', LANE_BACK, 41.5, 42.6, 'GET /userinfo   Authorization: Bearer <access_token>', 'signed');
+packet('idp', 'app', LANE_BACK, 42.7, 43.9, '{ sub, name, email, groups: [platform-admins], … }');
+packet('app', 'browser', LANE_REQ, 45.3, 47, '302 /dashboard  +  Set-Cookie: session=<encrypted>; HttpOnly');
+packet('browser', 'app', LANE_REQ, 47.2, 48.8, 'GET /dashboard   Cookie: session');
+// API
+packet('app', 'api', LANE_REQ, 49.8, 51.3, 'GET /api/orders   Authorization: Bearer <access_token>', 'signed');
+packet('api', 'idp', LANE_BACK, 51.4, 52.3, 'GET /jwks  (unknown kid)');
+packet('idp', 'api', LANE_BACK, 52.4, 53.4, 'public key kid=nPy6…', 'pubkey');
+packet('api', 'app', LANE_REQ, 55.3, 56.4, '200 OK  [orders]');
+packet('app', 'idp', LANE_BACK, 57, 58.6, 'POST /token  grant_type=refresh_token + client_secret', 'secret');
+packet('idp', 'app', LANE_BACK, 58.8, 60.6, 'new access_token · NEW refresh_token (old one revoked)', 'signed');
+
+// legend + caption bar
+el('text', { class: 'sub', x: 40, y: 530 }, 'sig = signed with the IdP private key  ·  pk = public key (JWKS)  ·  sec = carries the client_secret (confidential clients only)');
+el('rect', { x: 40, y: 542, width: 1120, height: 46, rx: 10, fill: '#ffffff', stroke: '#e5e7eb' });
+const phaseBadge = el('rect', { x: 50, y: 553, width: 66, height: 24, rx: 12, fill: PH.setup });
+const phaseText = el('text', { class: 'phase', x: 83, y: 569, 'text-anchor': 'middle' }, '');
+const capText = el('text', { class: 'caption', x: 126, y: 569 }, '');
+const progress = el('rect', { x: 40, y: 598, width: 0, height: 4, rx: 2, fill: '#2563eb' });
+const TOTAL = 66;
+
+function render(t) {
+  const cap = captions.find(c => t >= c[0] && t < c[1]) || captions[captions.length - 1];
+  const [, , label, phase, text] = cap;
+  phaseText.textContent = label; phaseBadge.setAttribute('fill', PH[phase]); phaseBadge.setAttribute('opacity', label ? 1 : 0);
+  capText.textContent = text; capText.setAttribute('x', label ? 126 : 54);
+  capText.setAttribute('font-size', text.length > 150 ? '12.6px' : text.length > 128 ? '13.4px' : '14.5px');
+  progress.setAttribute('width', 1120 * clamp(t / TOTAL, 0, 1));
+
+  // IdP
+  setLines('idp', [
+    t >= 4 ? 'issuer https://idp.example' : '',
+    t >= 5 ? 'discovery document published' : '',
+    t >= 6 ? '/jwks: public keys, no auth' : '',
+    t >= 9 ? 'client nextjs-app (confidential)' : '',
+    t >= 9.6 ? '  exact redirect_uri · secret ●●●●' : '',
+    t >= 10.4 ? 'user alice: roles admin, user' : '',
+    t >= 11 ? '  groups: platform-admins' : '',
+    t >= 35 && t < 38.5 ? 'PKCE ✓  secret ✓  → sign tokens' : (t >= 57.5 && t < 61.5 ? 'refresh ✓ → rotate' : ''),
+  ]);
+  idpPriv.setAttribute('transform', `translate(${P.idp.x + 18},${BOX_Y + 70}) scale(${(t >= 35 && t < 36.6) || (t >= 58 && t < 58.8) ? 1.3 : 1})`);
+  idpPub.setAttribute('transform', `translate(${P.idp.x + 18},${BOX_Y + 92}) scale(${(t >= 17 && t < 18.4) || (t >= 52.2 && t < 53.4) ? 1.3 : 1})`);
+  // app
+  setLines('appcfg', [t >= 9 ? 'OIDC_ISSUER=https://idp.example' : '', t >= 11.5 ? 'OIDC_CLIENT_ID=nextjs-app' : '', t >= 12.2 ? 'OIDC_CLIENT_SECRET=●●●● (Secret)' : '']);
+  setLines('applearn', [t >= 16.2 ? 'endpoints (authorize, token, …)' : '', t >= 18.4 ? 'public key kid=nPy6… (cached)' : '', t >= 20.6 && t < 45 ? 'txn: state, nonce, code_verifier' : (t >= 45 ? '' : '')]);
+  const claims = t < 38.5 ? [] : t < 40 ? ['id_token ✓ sig · iss · aud · nonce'] : t < 43.9
+    ? ['id_token ✓ sig · iss · aud · nonce', 'sub, name=Alice Admin, email', 'roles=[admin,user] (IdP mapper)']
+    : t < 45 ? ['claims + userinfo groups', 'roles=[admin,user] groups=[platform-admins]', 'session = encrypted cookie']
+    : t < 56.5 ? ['session cookie: tokens + claims', 'Alice Admin  [admin] [user]', 'access_token expires in 5 min']
+    : ['session cookie: tokens + claims', 'Alice Admin  [admin] [user]', t >= 60.6 ? 'access_token renewed ✓' : 'access_token expired → refresh'];
+  setLines('appsess', claims);
+  // browser
+  setLines('browser', [
+    t < 18.5 ? '' : t < 23 ? 'no cookie yet' : t < 28 ? 'at the IdP login page:' : t < 32.5 ? 'code + state received' : t < 45 ? 'waiting for the app…' : 'cookie: session (HttpOnly)',
+    t >= 23 && t < 28 ? 'alice / •••••• + MFA' : (t >= 45 ? 'no token readable by scripts' : ''),
+    t >= 25.5 && t < 28 ? 'consent: openid profile email' : '',
+    t >= 48.8 ? 'Dashboard: Alice Admin' : '',
+    t >= 48.8 ? 'badges: admin · user' : '',
+  ]);
+  // gateway
+  const via = packets.some(p => t >= p.t0 && t <= p.t1 && p.lane === LANE_REQ && (p.from === 'browser' || p.to === 'browser'));
+  setLines('gateway', [
+    'HTTPRoute / Ingress:', 'host → Service', '',
+    t >= 49.5 ? 'SecurityPolicy (optional):' : '', t >= 49.5 ? 'JWT signature via' : '', t >= 49.5 ? 'the same /jwks' : '',
+    t >= 49.5 && t < 56.5 ? 'kid nPy6… → sig ✓' : '',
+  ]);
+  P.gateway.rect.setAttribute('stroke-width', via ? 4 : 2);
+  // api
+  setLines('api', [
+    t >= 51.3 ? 'kid nPy6… not cached' : '', t >= 53.4 ? 'public key cached ✓' : '', '',
+    t >= 53.6 ? '✓ signature' : '', t >= 54 ? '✓ iss == issuer' : '', t >= 54.4 ? '✓ aud ∋ k8sgateway-api' : '', t >= 54.8 ? '✓ exp / nbf' : '', t >= 55.1 ? '✓ roles ∋ user' : '',
+  ]);
+  // packets
+  for (const p of packets) {
+    const { g, from, to, lane, t0, t1, w } = p;
+    if (t < t0 || t > t1 + 0.35) { g.setAttribute('opacity', 0); continue; }
+    const prog = ease(clamp((t - t0) / (t1 - t0), 0, 1));
+    const x = clamp(lerp(P[from].cx, P[to].cx, prog), 44 + w / 2, 1156 - w / 2);
+    g.setAttribute('opacity', t > t1 ? 1 - (t - t1) / 0.35 : Math.min(1, (t - t0) / 0.25));
+    g.setAttribute('transform', `translate(${x},${lane})`);
+  }
+  // highlight the party that "acts"
+  for (const p of Object.values(P)) if (p !== P.gateway) p.rect.setAttribute('stroke-width', 2);
+  const active = t < 3.5 ? null : t < 8 ? 'idp' : t < 13 ? 'idp' : t < 18.5 ? 'app' : t < 23 ? 'app' : t < 28 ? 'idp' : t < 32.5 ? 'browser' : t < 38.5 ? 'idp' : t < 45 ? 'app' : t < 49.5 ? 'browser' : t < 56.5 ? 'api' : t < 61.5 ? 'app' : null;
+  if (active) P[active].rect.setAttribute('stroke-width', 4);
+}
+window.render = render; window.TOTAL = TOTAL;
+if (!navigator.webdriver) { const start = performance.now(); (function tick() { render(((performance.now() - start) / 1000) % (TOTAL + 1)); requestAnimationFrame(tick); })(); }
+</script>

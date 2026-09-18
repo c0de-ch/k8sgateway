@@ -33,5 +33,7 @@ stay editable together.
 | file | caption |
 |---|---|
 | [`auth-flow.gif`](auth-flow.gif) | Authorization Code flow with PKCE followed by the API's JWT verification: what travels between browser, IdP and API, which key signs and which key verifies, and a tampered token being rejected. 960x540, 58 s, loops. |
+| [`login-flow-k8s.gif`](login-flow-k8s.gif) | The login seen from the cluster for the Next.js BFF: setup (IdP key pair, client registration, discovery, public keys), login through Envoy Gateway with OAuth 2.1 + OIDC, claims and roles/groups from the ID token and `/userinfo`, the bearer call to the API with gateway pre-check, refresh-token rotation. 1200x612, 66 s, loops. |
+| [`animation/login-flow-k8s.html`](animation/login-flow-k8s.html) | Its scene; open in a browser to watch it live. |
 | [`animation/auth-flow.html`](animation/auth-flow.html) | The scene (plain SVG + JavaScript, deterministic `render(t)`); open it in a browser to watch it live. |
-| [`animation/render.mjs`](animation/render.mjs) | Captures the frames with Playwright's Chromium (from `e2e/node_modules`) and assembles the GIF with ffmpeg: `node docs/images/animation/render.mjs`. |
+| [`animation/render.mjs`](animation/render.mjs) | Captures the frames with Playwright's Chromium (from `e2e/node_modules`) and assembles the GIF with ffmpeg: `node docs/images/animation/render.mjs [scene.html] [out.gif]`. |

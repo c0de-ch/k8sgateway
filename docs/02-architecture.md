@@ -232,6 +232,12 @@ docker.io/k8sgateway/rest-api      dev   4c41f7f468150   4.59MB
 
 Loading a rebuilt image restarts nothing: running pods keep the old image until recreated. After `scripts/build.sh rest-api` (or `make build APPS=rest-api`) run `kubectl -n k8sgateway rollout restart deployment/rest-api`; `scripts/switch-idp.sh` restarts all four applications anyway. `scripts/up.sh` chains everything - cluster, Envoy Gateway, gateway resources, CoreDNS rewrite, images, overlay - and `SKIP_BUILD=1` skips the build on a re-run.
 
+## The login seen from the cluster
+
+![Animated: browser, Envoy Gateway, application pod, API pod and identity provider during setup, login and an API call](images/login-flow-k8s.gif)
+
+*Setup (keys, client registration, discovery), the login redirect through the gateway, the back-channel token exchange, the claims and roles arriving in the signed ID token, the bearer call to the API. [Chapter 9](09-nextjs.md) walks through every step for the Next.js BFF; [chapter 1](01-concepts.md) has the SPA variant.*
+
 ## Ingress instead of the Gateway API
 
 Everything in this chapter that is specific to the Gateway API - `GatewayClass`, `EnvoyProxy`, `Gateway`, `HTTPRoute` - can be replaced by a classic Ingress controller and one `Ingress` per hostname without touching the applications or the IdPs; the CoreDNS rewrite then points at the controller's Service instead of the Envoy proxy. [Chapter 16](16-ingress.md) does exactly that with Traefik (`make ingress-on`).

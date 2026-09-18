@@ -1,7 +1,8 @@
-// Renders auth-flow.html frame by frame with Playwright's Chromium and assembles
-// docs/images/auth-flow.gif with ffmpeg. Run from the repo root after
+// Renders an animation scene frame by frame with Playwright's Chromium and
+// assembles a GIF with ffmpeg. Run from the repo root after
 // `cd e2e && npm install && npx playwright install chromium`:
-//   node docs/images/animation/render.mjs
+//   node docs/images/animation/render.mjs                                   # auth-flow.html -> docs/images/auth-flow.gif
+//   node docs/images/animation/render.mjs login-flow-k8s.html login-flow-k8s.gif
 import { createRequire } from 'node:module';
 import { mkdirSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -13,13 +14,16 @@ const require = createRequire(path.join(here, '../../../e2e/package.json'));
 const { chromium } = require('playwright');
 
 const FPS = Number(process.env.FPS ?? 10);
-const OUT = process.env.OUT ?? path.join(here, '..', 'auth-flow.gif');
-const frames = path.join(process.env.TMPDIR ?? '/tmp', 'k8sgateway-auth-flow-frames');
+const SCENE = process.argv[2] ?? 'auth-flow.html';
+const OUT = path.join(here, '..', process.argv[3] ?? SCENE.replace(/\.html$/, '.gif'));
+const frames = path.join(process.env.TMPDIR ?? '/tmp', 'k8sgateway-frames-' + SCENE.replace(/\.html$/, ''));
 rmSync(frames, { recursive: true, force: true }); mkdirSync(frames, { recursive: true });
 
 const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width: 960, height: 540 }, deviceScaleFactor: 1 });
-await page.goto('file://' + path.join(here, 'auth-flow.html'));
+const page = await browser.newPage({ viewport: { width: 1000, height: 560 }, deviceScaleFactor: 1 });
+await page.goto('file://' + path.join(here, SCENE));
+const size = await page.evaluate(() => { const r = document.querySelector('svg').getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height) }; });
+await page.setViewportSize({ width: size.w, height: size.h });
 const total = await page.evaluate(() => window.TOTAL);
 const n = Math.round(total * FPS);
 for (let i = 0; i <= n; i++) {

@@ -127,6 +127,10 @@ All four are driven by the same set of environment variables (`OIDC_ISSUER`, `OI
 
 *What travels where: the code_verifier never leaves the browser, the private key never leaves the IdP, the API only ever holds public keys, and a tampered token fails the signature check. Source and renderer in [docs/images/animation](docs/images/animation).*
 
+![Animated: an application pod behind Envoy Gateway logging a user in with OAuth 2.1 and OIDC - setup (IdP key pair, client registration, discovery, public keys), the redirect to the IdP, code and token exchange over the back channel, ID-token claims and roles/groups, the bearer call to the API and refresh-token rotation](docs/images/login-flow-k8s.gif)
+
+*The same flow seen from the cluster, for the Next.js BFF (a confidential client): what is exchanged at setup (never a private key; only a `client_secret` for confidential clients), how the login redirects through the gateway, where the claims and roles/groups come from (the IdP's user store and mappers, delivered in the signed ID token and via `/userinfo`), and what Envoy can pre-check.*
+
 The browser opens `http://<name>.127.0.0.1.nip.io`; nip.io resolves that to `127.0.0.1`, kind forwards host port 80 to NodePort 30080, and the Envoy proxy behind the `Gateway` routes on the `Host` header to the matching `HTTPRoute`. A frontend that needs a login redirects the browser to the IdP's authorization endpoint and later exchanges the code for tokens; every call to an API carries `Authorization: Bearer <access token>`. The APIs download the IdP's public keys once (`jwks_uri` from discovery) and validate every token locally: signature, issuer, audience, expiry, then roles. Because pods resolve `*.127.0.0.1.nip.io` to the Envoy Service (a CoreDNS rewrite), the issuer URL in the browser, in the token's `iss` claim and in the pods' configuration is one and the same string, which is exactly what OIDC validation requires.
 
 ## License

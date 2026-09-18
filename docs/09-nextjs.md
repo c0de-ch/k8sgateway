@@ -15,6 +15,12 @@ The Next.js application in [apps/nextjs-app](../apps/nextjs-app) shows the **bac
 
 ![SPA versus BFF: the Angular SPA keeps tokens in the browser and calls the APIs directly; the Next.js BFF keeps them in an encrypted HttpOnly cookie and relays API calls through /api/bff/*](images/bff-vs-spa.svg)
 
+The animation below plays the whole story for this app inside the cluster: the one-time setup (the IdP's key pair, the client registration with `client_id`, exact `redirect_uri` and `client_secret`, the app fetching the discovery document and the public keys at start), the login through the gateway with OAuth 2.1 (code flow + PKCE), the ID token and `/userinfo` delivering identity claims and roles/groups, the bearer call to the API and the refresh-token rotation.
+
+![Animated: setup, login through the gateway, claims and roles, API call and refresh for the Next.js BFF](images/login-flow-k8s.gif)
+
+*Regenerate with `node docs/images/animation/render.mjs login-flow-k8s.html login-flow-k8s.gif`; the scene is [login-flow-k8s.html](images/animation/login-flow-k8s.html).*
+
 *Left: the SPA of [chapter 8](08-angular.md), a public client with tokens in the browser. Right: this app, a confidential client (PKCE **and** a client secret) with tokens server side in an encrypted cookie and API calls over in-cluster URLs (no CORS). The APIs are identical. The price of the BFF: a server, a cookie secret, cookie size limits, CSRF hygiene.*
 
 ## The login round trip
