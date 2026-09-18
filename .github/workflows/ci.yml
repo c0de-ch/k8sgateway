@@ -1,0 +1,95 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  KIND_VERSION: v0.33.0
+  KUBECTL_VERSION: v1.37.0
+
+jobs:
+  build-images:
+    name: docker build ${{ matrix.app }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [mock-idp, angular-app, nextjs-app, rest-api, graphql-api]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: apps/${{ matrix.app }}
+          tags: k8sgateway/${{ matrix.app }}:dev
+          push: false
+          cache-from: type=gha,scope=${{ matrix.app }}
+          cache-to: type=gha,scope=${{ matrix.app }},mode=max
+
+  unit:
+    name: unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: apps/rest-api/go.mod
+          cache-dependency-path: apps/rest-api/go.sum
+      - name: go test (rest-api)
+        working-directory: apps/rest-api
+        run: go test ./...
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/**/package-lock.json
+      - name: npm test (mock-idp)
+        working-directory: apps/mock-idp
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+          npm test
+      - name: npm test (graphql-api)
+        working-directory: apps/graphql-api
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+          npm test
+
+  e2e-kind:
+    name: e2e on kind (mock -> keycloak)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: azure/setup-kubectl@v4
+        with:
+          version: ${{ env.KUBECTL_VERSION }}
+      - uses: helm/kind-action@v1
+        with:
+          version: ${{ env.KIND_VERSION }}
+          install_only: true # scripts/up.sh creates the cluster with deploy/kind/kind-config.yaml
+      - name: up (mock IdP)
+        run: IDP=mock scripts/up.sh
+      - name: smoke tests (mock)
+        run: scripts/test.sh
+      - name: switch to Keycloak
+        run: scripts/switch-idp.sh keycloak
+      - name: smoke tests (keycloak)
+        run: scripts/test.sh
+      - name: diagnostics
+        if: failure()
+        run: |
+          kubectl get pods -A -o wide
+          kubectl get gateway,httproute,securitypolicy -A
+          for ns in k8sgateway idp; do
+            for d in $(kubectl -n "$ns" get deploy -o name); do
+              echo "===== $ns/$d"; kubectl -n "$ns" describe "$d" | tail -20; kubectl -n "$ns" logs "$d" --all-containers --tail=200 || true
+            done
+          done
+          echo "===== envoy"; kubectl -n envoy-gateway-system logs -l gateway.envoyproxy.io/owning-gateway-name=main -c envoy --tail=100 || true
+          kubectl -n envoy-gateway-system logs deployment/envoy-gateway --tail=100 || true
