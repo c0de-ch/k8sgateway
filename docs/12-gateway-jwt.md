@@ -240,6 +240,10 @@ kubectl delete securitypolicy -n k8sgateway rest-api-jwt      # same thing, whic
 
 `GatewayClass`, `Gateway` and `HTTPRoute` are portable across conformant implementations; `SecurityPolicy` is not - it is Envoy Gateway's own CRD, and the Gateway API "policy attachment" pattern (a vendor policy whose `targetRefs` point at a route or gateway) is how every implementation adds what the core API lacks. kgateway (the CNCF project descended from Gloo) attaches a `TrafficPolicy` the same way and, since [v2.2.0](https://github.com/kgateway-dev/kgateway/releases/tag/v2.2.0) (February 2026), carries "JWT Authentication configuration" in the `TrafficPolicy` with "JWT Providers" defined in a `GatewayExtension`; Istio uses `RequestAuthentication` and `AuthorizationPolicy`. Moving between them means rewriting the files in this directory - not the routes, and never the applications, which do not know the gateway exists. With ingress-nginx, JWT and CORS lived in controller-specific annotations with no equivalent elsewhere, and that controller is now unmaintained.
 
+## Without a gateway policy: Ingress controllers
+
+A plain Ingress controller has no `SecurityPolicy`. With ingress-nginx (archived in March 2026) or Traefik OSS the edge cannot validate JWTs on its own; the pattern there is an external authorization hop (`nginx.ingress.kubernetes.io/auth-url`, Traefik `ForwardAuth`) to a small verifier service, or simply relying on the applications' own validation, which this repository does anyway. [Chapter 16](16-ingress.md) runs the whole tutorial behind Traefik and shows both options.
+
 ## Next
 
 [Switching identity providers](13-switching-idps.md) - the same images with a different ConfigMap, and what to do about the policy when you switch.

@@ -13,14 +13,20 @@ GATEWAY_NAME="${GATEWAY_NAME:-main}"
 GATEWAY_NAMESPACE="${GATEWAY_NAMESPACE:-k8sgateway}"
 EG_NAMESPACE="${EG_NAMESPACE:-envoy-gateway-system}"
 
-svc="$(kubectl -n "$EG_NAMESPACE" get svc \
-  -l "gateway.envoyproxy.io/owning-gateway-name=${GATEWAY_NAME},gateway.envoyproxy.io/owning-gateway-namespace=${GATEWAY_NAMESPACE}" \
-  -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
-if [[ -z "$svc" ]]; then
-  echo "error: no Envoy proxy Service found for Gateway ${GATEWAY_NAMESPACE}/${GATEWAY_NAME} yet" >&2
-  exit 1
+# REWRITE_TARGET overrides the discovered Envoy Service, e.g. traefik.ingress.svc.cluster.local
+# in Ingress mode (scripts/ingress-mode.sh).
+if [[ -n "${REWRITE_TARGET:-}" ]]; then
+  target="$REWRITE_TARGET"
+else
+  svc="$(kubectl -n "$EG_NAMESPACE" get svc \
+    -l "gateway.envoyproxy.io/owning-gateway-name=${GATEWAY_NAME},gateway.envoyproxy.io/owning-gateway-namespace=${GATEWAY_NAMESPACE}" \
+    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
+  if [[ -z "$svc" ]]; then
+    echo "error: no Envoy proxy Service found for Gateway ${GATEWAY_NAMESPACE}/${GATEWAY_NAME} yet" >&2
+    exit 1
+  fi
+  target="${svc}.${EG_NAMESPACE}.svc.cluster.local"
 fi
-target="${svc}.${EG_NAMESPACE}.svc.cluster.local"
 escaped_domain="$(printf '%s' "$BASE_DOMAIN" | sed 's/\./\\./g')"
 
 # Build the new Corefile: drop a previous k8sgateway block (idempotent), then

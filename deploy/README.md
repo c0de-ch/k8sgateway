@@ -213,3 +213,7 @@ to the other scripts - `deploy.sh`, `switch-idp.sh`, `test.sh`, `get-token.sh`,
 
 `tls/` adds an https listener with a locally generated CA; see
 [tls/README.md](tls/README.md).
+
+## Ingress mode (deploy/ingress)
+
+`scripts/ingress-mode.sh on` deletes the Gateway, installs Traefik v3 as a classic Ingress controller (same NodePorts 30080/30443) and applies one `Ingress` per hostname; `off` reverses it. The applications and IdPs are untouched. See docs/16-ingress.md.

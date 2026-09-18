@@ -1,0 +1,134 @@
+# One Ingress per hostname - the Ingress equivalent of the HTTPRoutes in
+# deploy/base/*/httproute.yaml and deploy/idp/*/httproute.yaml. Host-based
+# routing, path "/" - nothing else is needed for this tutorial.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: angular-app
+  namespace: k8sgateway
+  labels:
+    app.kubernetes.io/name: angular-app
+    app.kubernetes.io/part-of: k8sgateway
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: angular.127.0.0.1.nip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: angular-app
+                port:
+                  number: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nextjs-app
+  namespace: k8sgateway
+  labels:
+    app.kubernetes.io/name: nextjs-app
+    app.kubernetes.io/part-of: k8sgateway
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: next.127.0.0.1.nip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: nextjs-app
+                port:
+                  number: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rest-api
+  namespace: k8sgateway
+  labels:
+    app.kubernetes.io/name: rest-api
+    app.kubernetes.io/part-of: k8sgateway
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: api.127.0.0.1.nip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: rest-api
+                port:
+                  number: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: graphql-api
+  namespace: k8sgateway
+  labels:
+    app.kubernetes.io/name: graphql-api
+    app.kubernetes.io/part-of: k8sgateway
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: graphql.127.0.0.1.nip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: graphql-api
+                port:
+                  number: 4000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mock-idp
+  namespace: idp
+  labels:
+    app.kubernetes.io/name: mock-idp
+    app.kubernetes.io/part-of: k8sgateway
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: idp.127.0.0.1.nip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: mock-idp
+                port:
+                  number: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: keycloak
+  namespace: idp
+  labels:
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/part-of: k8sgateway
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: keycloak.127.0.0.1.nip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: keycloak
+                port:
+                  number: 8080

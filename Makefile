@@ -12,7 +12,7 @@ TOKEN_USER := alice
 endif
 OVERLAYS := mock keycloak entra oracle
 
-.PHONY: help up down build deploy switch test token urls logs tls lint
+.PHONY: help up down build deploy switch test token urls logs tls ingress-on ingress-off lint
 
 help: ## show this help
 	@awk 'BEGIN{FS=":.*## "; printf "\nk8sgateway - JWT-protected apps on Kubernetes with a pluggable IdP\n\n"} /^[a-zA-Z_-]+:.*## /{printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2} END{printf "\nvariables: IDP=mock|keycloak|entra|oracle  USER=alice|bob|carol  APP=rest-api|...  SCHEME=http|https\n           HTTP_PORT=8080 HTTPS_PORT=8443 when ports 80/443 cannot be bound (rootless Docker)\n\n"}' $(MAKEFILE_LIST)
@@ -47,12 +47,19 @@ logs: ## tail the logs of APP=rest-api|graphql-api|angular-app|nextjs-app|mock-i
 tls: ## optional: local CA + wildcard cert + https listener on the Gateway
 	scripts/tls-setup.sh
 
+ingress-on: ## alternative: replace the Gateway with a Traefik Ingress controller + Ingress resources
+	scripts/ingress-mode.sh on
+
+ingress-off: ## back to the Gateway API setup
+	scripts/ingress-mode.sh off
+
 lint: ## render every overlay (kubectl kustomize), kubeconform + shellcheck if installed
 	@set -e; export PATH="$$HOME/.local/bin:$$PATH"; \
 	for o in $(OVERLAYS); do \
 	  printf 'kustomize %-9s ' $$o; kubectl kustomize deploy/overlays/$$o > /tmp/k8sgateway-$$o.yaml && echo ok; \
 	  if command -v kubeconform >/dev/null; then kubeconform -strict -ignore-missing-schemas -summary /tmp/k8sgateway-$$o.yaml; fi; \
 	done; \
+	printf 'kustomize %-9s ' ingress; kubectl kustomize deploy/ingress > /tmp/k8sgateway-ingress.yaml && echo ok; \
 	for f in deploy/gateway-policies/*.yaml deploy/tls/gateway-https.yaml; do printf 'yaml %-40s ' $$f; kubectl apply --dry-run=client -f $$f > /dev/null && echo ok; done; \
 	for f in scripts/*.sh; do bash -n $$f; done && echo "bash -n scripts/*.sh ok"; \
 	if command -v shellcheck >/dev/null; then shellcheck -x scripts/*.sh && echo "shellcheck ok"; else echo "shellcheck not installed - skipped"; fi

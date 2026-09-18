@@ -124,4 +124,4 @@ Also keep `code_challenge_method=S256` enforced server-side (the mock IdP does; 
 
 ## Next
 
-Back to the [README](../README.md) for the chapter index, or start again at [OIDC and JWT concepts](01-concepts.md) with production in mind.
+[Ingress instead of the Gateway API](16-ingress.md) runs the same tutorial behind a classic Ingress controller. Otherwise back to the [README](../README.md) for the chapter index, or start again at [OIDC and JWT concepts](01-concepts.md) with production in mind.

@@ -1,0 +1,7 @@
+# Ingress mode: Traefik as a classic Ingress controller plus one Ingress per
+# hostname. Applied/removed by scripts/ingress-mode.sh (see docs/16-ingress.md).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - traefik.yaml
+  - ingresses.yaml

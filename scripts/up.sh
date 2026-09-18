@@ -75,6 +75,9 @@ k -n envoy-gateway-system wait deployment/envoy-gateway --for=condition=Availabl
 k wait --for=condition=Established crd/gateways.gateway.networking.k8s.io crd/securitypolicies.gateway.envoyproxy.io --timeout=60s >/dev/null
 
 # 3. Gateway -----------------------------------------------------------------
+if k -n ingress get deployment traefik >/dev/null 2>&1; then
+  die "Ingress mode is active (Traefik owns NodePorts 30080/30443). Run scripts/ingress-mode.sh off first, or use scripts/deploy.sh <idp> to (re)deploy the applications."
+fi
 log "applying deploy/gateway"
 k apply -k "$REPO_ROOT/deploy/gateway"
 # kubectl apply replaced the listener list: restore the https listener if TLS mode was set up.

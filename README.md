@@ -20,6 +20,7 @@ A hands-on tutorial for **JWT-protected web applications on Kubernetes**. An ext
 | Keycloak | Keycloak 26.7 (`start-dev --import-realm`) | A real IdP in the cluster: realm `k8sgateway` with users, roles, clients and an audience mapper | [deploy/idp/keycloak](deploy/idp/keycloak) |
 | Gateway | Envoy Gateway 1.9.1, Gateway API | One `Gateway`, one `HTTPRoute` per hostname, optional JWT `SecurityPolicy` at the edge | [deploy/gateway](deploy/gateway), [deploy/gateway-policies](deploy/gateway-policies) |
 | Overlays | kustomize | One base, one overlay per IdP; placeholder guard for the cloud IdPs; optional TLS mode | [deploy/overlays](deploy/overlays), [deploy/tls](deploy/tls) |
+| Ingress variant | Traefik v3 (Ingress controller) | The same six hostnames routed by classic `Ingress` resources instead of the Gateway API; switch with one command | [deploy/ingress](deploy/ingress) |
 | Scripts | bash | `up`, `down`, `build`, `deploy`, `switch-idp`, `get-token`, `test`, `render` | [scripts](scripts), [Makefile](Makefile) |
 | Browser tests | Playwright | The real login flows of both frontends, and the screenshots used in the docs | [e2e](e2e) |
 
@@ -92,6 +93,7 @@ All four are driven by the same set of environment variables (`OIDC_ISSUER`, `OI
 13. [Switching IdPs](docs/13-switching-idps.md): overlays, the variable matrix, what a switch really changes.
 14. [Troubleshooting](docs/14-troubleshooting.md): ports, DNS, secure contexts, issuer mismatches, stale JWKS.
 15. [Production checklist](docs/15-production-checklist.md): what to change before this leaves your laptop.
+16. [Ingress instead of the Gateway API](docs/16-ingress.md): the same setup with a classic Ingress controller (Traefik), the full walk-through and where JWT validation happens without a gateway policy.
 
 ## Repository layout
 
@@ -110,12 +112,13 @@ All four are driven by the same set of environment variables (`OIDC_ISSUER`, `OI
 │   ├── idp/                mock IdP and Keycloak manifests
 │   ├── overlays/           mock | keycloak | entra | oracle (per-IdP ConfigMaps)
 │   ├── gateway-policies/   optional SecurityPolicy examples (JWT at the edge)
-│   └── tls/                optional https listener with a local CA
+│   ├── tls/                optional https listener with a local CA
+│   └── ingress/            alternative: Traefik Ingress controller + one Ingress per hostname
 ├── scripts/                up.sh, down.sh, build.sh, deploy.sh, switch-idp.sh, get-token.sh, test.sh, render.sh, ...
 ├── e2e/                    Playwright browser checks and screenshot generator
 ├── docs/                   the tutorial chapters, diagrams and screenshots
 ├── .github/workflows/      CI: image builds, unit tests, kind e2e (mock -> Keycloak)
-└── Makefile                make up | down | build | deploy | switch | test | token | urls | logs | tls | lint
+└── Makefile                make up | down | build | deploy | switch | test | token | urls | logs | tls | ingress-on | ingress-off | lint
 ```
 
 ## How the pieces talk

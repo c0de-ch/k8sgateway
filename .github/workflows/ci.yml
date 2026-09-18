@@ -81,6 +81,12 @@ jobs:
         run: scripts/switch-idp.sh keycloak
       - name: smoke tests (keycloak)
         run: scripts/test.sh
+      - name: Ingress mode (Traefik instead of the Gateway)
+        run: scripts/ingress-mode.sh on
+      - name: smoke tests (keycloak, through the Ingress)
+        run: scripts/test.sh
+      - name: back to the Gateway
+        run: scripts/ingress-mode.sh off
       - name: diagnostics
         if: failure()
         run: |
