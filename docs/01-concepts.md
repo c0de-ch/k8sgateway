@@ -91,6 +91,30 @@ This is the only login flow the applications use (the implicit flow is obsolete)
 
 Between steps 2 and 5 the BFF keeps verifier, `state` and `nonce` in a short-lived encrypted cookie (`k8sgw_txn`, [session.ts](../apps/nextjs-app/src/lib/session.ts)); the SPA keeps them in browser storage.
 
+## OAuth 2.1: what it changes and where this repository stands
+
+OAuth 2.1 ([draft-ietf-oauth-v2-1](https://datatracker.ietf.org/doc/draft-ietf-oauth-v2-1/)) is not a new protocol. It consolidates OAuth 2.0 (RFC 6749, RFC 6750), PKCE (RFC 7636) and the OAuth 2.0 Security Best Current Practice into one document and removes the options that turned out to be unsafe. There are no new endpoints or parameters, and identity providers such as Keycloak, Microsoft Entra ID and Oracle IAM Identity Domains still describe what they implement as "OAuth 2.0 / OpenID Connect". You comply with OAuth 2.1 by using the right subset of OAuth 2.0, which is what the two applications in this repository do:
+
+| OAuth 2.1 rule | Status here | Where |
+|---|---|---|
+| Authorization Code flow **with PKCE for every client**, confidential ones included | done | Angular SPA and Next.js BFF both send `code_challenge` (S256); the mock IdP refuses public clients without PKCE and only accepts S256; the Keycloak clients are pinned to S256 |
+| Implicit grant removed | done | nothing requests `response_type=token`; the diagrams and chapters only show the code flow |
+| Resource Owner Password Credentials grant removed | **not for scripts** | the applications never use it; the `cli` client in the mock IdP and in the Keycloak realm allows it so that `scripts/get-token.sh` and `scripts/test.sh` can obtain per-user tokens without a browser. That example is OAuth 2.0 only, see below |
+| Exact string matching of redirect URIs | done for the BFF, relaxed for development elsewhere | the Next.js client registers exact URIs; the Angular client in Keycloak uses `http://angular.127.0.0.1.nip.io/*` and the mock IdP accepts any redirect URI while `MOCK_ALLOW_ANY_REDIRECT=true` (the default) |
+| Refresh tokens for public clients are sender-constrained or rotated | done | the mock IdP rotates refresh tokens on every use (and invalidates a reused one); Keycloak rotates by default; Entra ID rotates and limits SPA refresh tokens to 24 hours |
+| No bearer tokens in query strings | done | only the `Authorization: Bearer` header is used, by the applications and by the gateway policy |
+| Bearer tokens must not be logged | done | the APIs log `sub` and roles, never the token |
+
+### The per-user token example is OAuth 2.0 only
+
+The quickstart, the Keycloak chapter and the mock IdP chapter obtain a token for alice, bob or carol with:
+
+```bash
+TOKEN=$(scripts/get-token.sh alice)
+```
+
+That is the Resource Owner Password Credentials grant (`grant_type=password`): the script sends the user's password straight to the token endpoint. It is a valid OAuth **2.0** grant and the simplest way to show the 200/401/403 matrix from a terminal, but OAuth **2.1** removes it, because it hands credentials to the client, bypasses multi-factor authentication and single sign-on, and teaches users to type their password outside the IdP. Treat it as a test fixture: it is enabled on one dedicated client (`cli`), Entra ID and Oracle IAM Identity Domains are not configured for it in this repository, and the browser suite in [e2e/](../e2e) covers the same users through the real code flow. To make an installation strictly OAuth 2.1, disable `cli` (or the password grant on it) and use the `client_credentials` grant of the `svc-batch` client (`scripts/get-token.sh --client-credentials`) for machine-to-machine checks. [Chapter 15](15-production-checklist.md#oauth-21-strict-mode) lists the settings.
+
 ## Public and confidential clients
 
 A confidential client runs where a secret can be kept (a server); a public client runs where it cannot (a browser, a CLI) - a secret in a JavaScript bundle is not a secret. The four clients in [clients.json](../apps/mock-idp/clients.json) and [realm-export.json](../deploy/idp/keycloak/realm-export.json):

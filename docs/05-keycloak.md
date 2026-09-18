@@ -117,7 +117,7 @@ The issuer is exactly the overlay's `OIDC_ISSUER`: no port (80 is normalized awa
 
 ## Getting a token and reading it
 
-[`scripts/get-token.sh`](../scripts/get-token.sh) reads the discovery document and uses the password grant on the `cli` client. `--decode` prints header and payload; the `keycloak` argument is optional once Keycloak is the deployed IdP.
+[`scripts/get-token.sh`](../scripts/get-token.sh) reads the discovery document and uses the password grant on the `cli` client. `--decode` prints header and payload; the `keycloak` argument is optional once Keycloak is the deployed IdP. The password grant is OAuth 2.0 only (OAuth 2.1 removes it): it is enabled on this one test client ("Direct access grants" in the admin console) and on no application client, see [chapter 1](01-concepts.md#the-per-user-token-example-is-oauth-20-only).
 
 ```bash
 scripts/get-token.sh --decode alice keycloak

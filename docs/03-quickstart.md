@@ -175,7 +175,7 @@ The screenshots are produced by [e2e/flows.mjs](../e2e/flows.mjs) against whiche
 
 ### Call the REST API with curl
 
-[scripts/get-token.sh](../scripts/get-token.sh) obtains an access token with the resource-owner password grant on the public client `cli`. That grant exists here for scripts and tests only; applications use the code flow.
+[scripts/get-token.sh](../scripts/get-token.sh) obtains an access token with the resource-owner password grant on the public client `cli`. That grant exists here for scripts and tests only; applications use the code flow. Note that this per-user token example is **OAuth 2.0 only**: OAuth 2.1 removes the password grant, and the applications in this repository never use it (see [OAuth 2.1 in chapter 1](01-concepts.md#oauth-21-what-it-changes-and-where-this-repository-stands)).
 
 ```bash
 TOKEN=$(scripts/get-token.sh alice)           # or: make -s token USER=alice

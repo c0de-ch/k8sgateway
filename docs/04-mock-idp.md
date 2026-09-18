@@ -142,7 +142,7 @@ The volume is `optional`, so a bare `kubectl apply -k deploy/overlays/mock` stil
 
 ## Grants and errors
 
-Two grants are for applications, two exist only for scripts. **Authorization code + PKCE** is what the Angular SPA and the Next.js BFF use; exercise it by signing in through either application. **Password grant** on the public client `cli` is what `scripts/get-token.sh` uses so that curl-based tests get a token without a browser (real IdPs discourage or have removed this grant):
+Two grants are for applications, two exist only for scripts. **Authorization code + PKCE** is what the Angular SPA and the Next.js BFF use; exercise it by signing in through either application. **Password grant** on the public client `cli` is what `scripts/get-token.sh` uses so that curl-based tests get a token without a browser. It is an OAuth 2.0 grant that OAuth 2.1 removes and that real IdPs discourage; it stays a test fixture here, see [chapter 1](01-concepts.md#the-per-user-token-example-is-oauth-20-only):
 
 ```bash
 TOKEN=$(scripts/get-token.sh alice mock)

@@ -87,6 +87,17 @@ The Next.js session is an encrypted cookie holding access, refresh and ID token.
 
 The Angular app stores tokens in `localStorage` ([apps/angular-app/src/app/app.config.ts](../apps/angular-app/src/app/app.config.ts)) so the session survives reloads and tabs - convenient, and it means any script running on the page can read the refresh token. `sessionStorage` (the library default) narrows the window to one tab, memory-only storage removes persistence entirely, and the BFF pattern removes tokens from the browser altogether at the price of a server and a cookie. Pick per threat model, and pair a SPA with a strict Content-Security-Policy and short token lifetimes.
 
+## OAuth 2.1 strict mode
+
+The applications already follow OAuth 2.1 (Authorization Code + PKCE only, no implicit grant, rotated refresh tokens, bearer tokens only in the `Authorization` header, see [chapter 1](01-concepts.md#oauth-21-what-it-changes-and-where-this-repository-stands)). Two development conveniences in the IdP configuration are OAuth 2.0 only and must go before production:
+
+| Convenience | Why it is there | Strict setting |
+|---|---|---|
+| Password grant on the test client `cli` (`grant_type=password`, used by `scripts/get-token.sh` and `scripts/test.sh` for per-user tokens) | curl examples and smoke tests without a browser | Mock IdP: remove `"password"` from the `cli` entry in [apps/mock-idp/clients.json](../apps/mock-idp/clients.json) (or drop the client) and rebuild the image. Keycloak: set `directAccessGrantsEnabled: false` on `cli` in [realm-export.json](../deploy/idp/keycloak/realm-export.json) (admin console: client `cli` > Capability config > Direct access grants) or delete the client. Entra ID and Oracle IAM: nothing to do, the overlays never configure it. Machine checks then use `scripts/get-token.sh --client-credentials` (client `svc-batch`); per-user checks move to the browser suite in [e2e/](../e2e) |
+| Relaxed redirect URI matching | any hostname works while developing | Mock IdP: `MOCK_ALLOW_ANY_REDIRECT=false` in [deploy/idp/mock/mock-idp.env](../deploy/idp/mock/mock-idp.env) so only the URIs listed in `clients.json` are accepted (prefix wildcards allowed only where you keep them). Keycloak: replace `http://angular.127.0.0.1.nip.io/*` in the `angular-app` client with the exact URIs the SPA uses, `https://<host>/callback` for login and `https://<host>/` as post-logout redirect URI ([auth.service.ts](../apps/angular-app/src/app/core/auth.service.ts) builds both from `window.location.origin`). Entra ID and Oracle IAM enforce exact matching themselves |
+
+Also keep `code_challenge_method=S256` enforced server-side (the mock IdP does; Keycloak through the `pkce.code.challenge.method` client attribute) and `OIDC_REQUIRE_HTTPS=true` / `requireHttps: true` once the issuer is https.
+
 ## Where each item is configured
 
 | Item | Where in this repository |
@@ -109,6 +120,7 @@ The Angular app stores tokens in `localStorage` ([apps/angular-app/src/app/app.c
 | Monitoring | request logs of every app, Envoy access log (`scripts/logs.sh envoy`), Envoy metrics port 19001, `/readyz` bodies |
 | BFF cookie size | `MAX_COOKIE_BYTES` and `MAX_ID_TOKEN_COOKIE_BYTES` in [session.ts](../apps/nextjs-app/src/lib/session.ts) |
 | Browser storage | `OAuthStorage` provider in [app.config.ts](../apps/angular-app/src/app/app.config.ts) |
+| OAuth 2.1 strict mode | `grant_types` of `cli` in [apps/mock-idp/clients.json](../apps/mock-idp/clients.json), `MOCK_ALLOW_ANY_REDIRECT` in [mock-idp.env](../deploy/idp/mock/mock-idp.env), `directAccessGrantsEnabled` and `redirectUris` in [realm-export.json](../deploy/idp/keycloak/realm-export.json) |
 
 ## Next
 

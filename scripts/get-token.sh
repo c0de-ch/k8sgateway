@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Obtain an access token from the mock IdP or Keycloak for scripts and curl.
-# Uses the resource-owner password grant on the public client "cli" - a grant
-# type that exists here ONLY for tests; real applications use the code flow.
+# Uses the resource-owner password grant on the public client "cli" - an OAuth 2.0
+# grant that OAuth 2.1 removes. It exists here ONLY for tests; the applications
+# use the Authorization Code flow with PKCE (docs/01-concepts.md).
 set -euo pipefail
 # shellcheck source=lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -11,6 +12,7 @@ usage() {
 usage: scripts/get-token.sh [options] [user] [idp]
 
   user   alice | bob | carol (default alice; password = user name, override with PASSWORD)
+         (password grant: OAuth 2.0 only, removed in OAuth 2.1 - test fixture, never for applications)
   idp    mock | keycloak     (default: whatever is deployed, else \$IDP)
 
 options
