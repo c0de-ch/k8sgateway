@@ -77,6 +77,8 @@ The animated version below adds the second half of the story, what the API does 
 
 *Regenerate with `node docs/images/animation/render.mjs` (the scene is [auth-flow.html](images/animation/auth-flow.html), which you can also open in a browser to watch it live).*
 
+Prefer a player you can pause and slow down? The same animation as a video: [images/auth-flow.mp4](images/auth-flow.mp4).
+
 1. The client generates a random `code_verifier` and derives `code_challenge = BASE64URL(SHA-256(code_verifier))`.
 2. It redirects the browser to the IdP's `authorization_endpoint` with `response_type=code`, `client_id`, `redirect_uri`, `scope`, `state`, `nonce`, `code_challenge` and `code_challenge_method=S256`.
 3. The user authenticates *at the IdP* (password, MFA, SSO cookie); the application never sees the credentials.

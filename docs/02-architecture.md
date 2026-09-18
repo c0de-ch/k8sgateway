@@ -238,6 +238,8 @@ Loading a rebuilt image restarts nothing: running pods keep the old image until 
 
 *Setup (keys, client registration, discovery), the login redirect through the gateway, the back-channel token exchange, the claims and roles arriving in the signed ID token, the bearer call to the API. [Chapter 9](09-nextjs.md) walks through every step for the Next.js BFF; [chapter 1](01-concepts.md) has the SPA variant.*
 
+Video version with pause and speed control: [images/login-flow-k8s.mp4](images/login-flow-k8s.mp4).
+
 ## Ingress instead of the Gateway API
 
 Everything in this chapter that is specific to the Gateway API - `GatewayClass`, `EnvoyProxy`, `Gateway`, `HTTPRoute` - can be replaced by a classic Ingress controller and one `Ingress` per hostname without touching the applications or the IdPs; the CoreDNS rewrite then points at the controller's Service instead of the Envoy proxy. [Chapter 16](16-ingress.md) does exactly that with Traefik (`make ingress-on`).

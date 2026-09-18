@@ -21,6 +21,8 @@ The animation below plays the whole story for this app inside the cluster: the o
 
 *Regenerate with `node docs/images/animation/render.mjs login-flow-k8s.html login-flow-k8s.gif`; the scene is [login-flow-k8s.html](images/animation/login-flow-k8s.html).*
 
+As a video (pause, scrub, slow down): [images/login-flow-k8s.mp4](images/login-flow-k8s.mp4). The checklist on the left shows each operation as pending, in progress or done.
+
 *Left: the SPA of [chapter 8](08-angular.md), a public client with tokens in the browser. Right: this app, a confidential client (PKCE **and** a client secret) with tokens server side in an encrypted cookie and API calls over in-cluster URLs (no CORS). The APIs are identical. The price of the BFF: a server, a cookie secret, cookie size limits, CSRF hygiene.*
 
 ## The login round trip
