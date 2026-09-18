@@ -27,3 +27,11 @@ README for the output location.
 Each diagram also exists as a Mermaid block in [`mermaid.md`](mermaid.md), which
 GitHub renders inline; copy the block into a chapter when text and picture must
 stay editable together.
+
+## Animation
+
+| file | caption |
+|---|---|
+| [`auth-flow.gif`](auth-flow.gif) | Authorization Code flow with PKCE followed by the API's JWT verification: what travels between browser, IdP and API, which key signs and which key verifies, and a tampered token being rejected. 960x540, 58 s, loops. |
+| [`animation/auth-flow.html`](animation/auth-flow.html) | The scene (plain SVG + JavaScript, deterministic `render(t)`); open it in a browser to watch it live. |
+| [`animation/render.mjs`](animation/render.mjs) | Captures the frames with Playwright's Chromium (from `e2e/node_modules`) and assembles the GIF with ffmpeg: `node docs/images/animation/render.mjs`. |

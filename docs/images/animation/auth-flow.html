@@ -1,0 +1,194 @@
+<!doctype html>
+<!--
+  Deterministic animation of the Authorization Code flow with PKCE and of the
+  JWT verification by the API: what travels between the browser, the identity
+  provider and the API, and which key is used where. render(t) draws the scene
+  at second t; render.mjs captures frames and ffmpeg turns them into
+  docs/images/auth-flow.gif. Open this file in a browser to watch it live.
+-->
+<meta charset="utf-8">
+<title>Authorization Code flow with PKCE - token, keys and signature</title>
+<style>
+  html, body { margin: 0; background: #f8fafc; font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  svg { display: block; width: 960px; height: 540px; }
+  .box { fill: #ffffff; stroke-width: 2; rx: 12; }
+  .title { font-size: 15px; font-weight: 700; fill: #1f2937; }
+  .sub { font-size: 11.5px; fill: #6b7280; }
+  .slot { font-size: 12px; fill: #1f2937; }
+  .slot-label { font-size: 11px; fill: #6b7280; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .caption { font-size: 15px; fill: #1f2937; }
+  .step { font-size: 12px; font-weight: 700; fill: #ffffff; }
+  .packet { font-size: 12px; fill: #1f2937; }
+  .check { font-size: 12.5px; fill: #1f2937; }
+  .lane { stroke: #e5e7eb; stroke-width: 1.5; stroke-dasharray: 4 4; }
+</style>
+<svg id="scene" viewBox="0 0 960 540" xmlns="http://www.w3.org/2000/svg"></svg>
+<script>
+const NS = 'http://www.w3.org/2000/svg';
+const svg = document.getElementById('scene');
+const el = (tag, attrs = {}, text) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); if (text !== undefined) e.textContent = text; svg.appendChild(e); return e; };
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const ease = p => p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+const lerp = (a, b, p) => a + (b - a) * p;
+
+// ---- parties -----------------------------------------------------------------
+const P = {
+  browser: { x: 40, w: 270, color: '#2563eb', title: 'Browser · Angular SPA', sub: 'public client, tokens in the browser' },
+  idp:     { x: 345, w: 270, color: '#16a34a', title: 'Identity provider', sub: 'Keycloak / Entra ID / Oracle / mock IdP' },
+  api:     { x: 650, w: 270, color: '#7c3aed', title: 'REST API (Go)', sub: 'resource server, validates every request' },
+};
+for (const p of Object.values(P)) p.cx = p.x + p.w / 2;
+const BOX_Y = 60, BOX_H = 250;
+for (const [k, p] of Object.entries(P)) {
+  p.rect = el('rect', { class: 'box', x: p.x, y: BOX_Y, width: p.w, height: BOX_H, stroke: p.color });
+  el('rect', { x: p.x, y: BOX_Y, width: p.w, height: 6, fill: p.color, rx: 3 });
+  el('text', { class: 'title', x: p.x + 14, y: BOX_Y + 30 }, p.title);
+  el('text', { class: 'sub', x: p.x + 14, y: BOX_Y + 48 }, p.sub);
+}
+// key glyph: a small key drawn at (x,y) in a colour
+function key(x, y, color, label) {
+  const g = el('g', { transform: `translate(${x},${y})`, opacity: 1 });
+  const c = document.createElementNS(NS, 'circle'); c.setAttribute('cx', 0); c.setAttribute('cy', 0); c.setAttribute('r', 6); c.setAttribute('fill', 'none'); c.setAttribute('stroke', color); c.setAttribute('stroke-width', 2.5); g.appendChild(c);
+  const l = document.createElementNS(NS, 'path'); l.setAttribute('d', 'M6 0 H22 M16 0 V5 M20 0 V4'); l.setAttribute('stroke', color); l.setAttribute('stroke-width', 2.5); l.setAttribute('fill', 'none'); l.setAttribute('stroke-linecap', 'round'); g.appendChild(l);
+  if (label) { const t = document.createElementNS(NS, 'text'); t.setAttribute('x', 30); t.setAttribute('y', 4.5); t.setAttribute('class', 'slot'); t.textContent = label; g.appendChild(t); }
+  return g;
+}
+// Slots inside the boxes (filled over time)
+const S = {};
+function slot(name, party, y, label, mono = true) {
+  const p = P[party];
+  el('text', { class: 'slot-label', x: p.x + 14, y }, label);
+  S[name] = el('text', { class: 'slot' + (mono ? ' mono' : ''), x: p.x + 14, y: y + 17 }, '—');
+}
+slot('verifier', 'browser', BOX_Y + 78, 'code_verifier (random, kept secret)');
+slot('challenge', 'browser', BOX_Y + 118, 'code_challenge = BASE64URL(SHA-256(verifier))');
+slot('tokens', 'browser', BOX_Y + 158, 'tokens');
+slot('state', 'browser', BOX_Y + 198, 'state / nonce check');
+// IdP internals
+const idpPriv = key(P.idp.x + 20, BOX_Y + 80, '#dc2626', 'private key  (never leaves the IdP)');
+const idpPub = key(P.idp.x + 20, BOX_Y + 108, '#16a34a', 'public key  (published at /jwks)');
+el('text', { class: 'slot-label', x: P.idp.x + 14, y: BOX_Y + 142 }, 'users: alice (admin, user) · bob (user) · carol');
+const idpLogin = el('g', { opacity: 0 });
+{ const r = document.createElementNS(NS, 'rect'); r.setAttribute('x', P.idp.x + 14); r.setAttribute('y', BOX_Y + 154); r.setAttribute('width', 242); r.setAttribute('height', 48); r.setAttribute('rx', 8); r.setAttribute('fill', '#f0fdf4'); r.setAttribute('stroke', '#16a34a'); idpLogin.appendChild(r);
+  const t1 = document.createElementNS(NS, 'text'); t1.setAttribute('x', P.idp.x + 24); t1.setAttribute('y', BOX_Y + 174); t1.setAttribute('class', 'slot'); t1.textContent = 'Sign in   alice  /  ••••••'; idpLogin.appendChild(t1);
+  const t2 = document.createElementNS(NS, 'text'); t2.setAttribute('x', P.idp.x + 24); t2.setAttribute('y', BOX_Y + 192); t2.setAttribute('class', 'slot-label'); t2.textContent = 'password typed HERE, never in the application'; idpLogin.appendChild(t2); }
+const idpCheck = el('text', { class: 'slot mono', x: P.idp.x + 14, y: BOX_Y + 226, opacity: 0 }, '');
+// API internals
+slot('jwks', 'api', BOX_Y + 78, 'JWKS cache (public keys by kid)');
+const checks = ['signature  (public key kid=nPy6…)', 'iss  == the configured issuer', 'aud  contains k8sgateway-api', 'exp / nbf  (60 s skew)', 'roles  contain user'];
+const checkEls = checks.map((c, i) => el('text', { class: 'check mono', x: P.api.x + 14, y: BOX_Y + 128 + i * 20, opacity: 0.25 }, '○ ' + c));
+
+// ---- lanes and packets --------------------------------------------------------
+const LANE_A = 350, LANE_B = 415;   // A: browser<->idp and api<->idp, B: browser<->api
+el('line', { class: 'lane', x1: 60, y1: LANE_A, x2: 900, y2: LANE_A });
+el('line', { class: 'lane', x1: 60, y1: LANE_B, x2: 900, y2: LANE_B });
+const packets = [];
+function packet(from, to, lane, t0, t1, label, kind = 'plain') {
+  const g = el('g', { opacity: 0 });
+  const w = Math.max(150, label.length * 7.3 + 44 + (kind !== 'plain' ? 26 : 0));
+  const r = document.createElementNS(NS, 'rect'); r.setAttribute('x', -w / 2); r.setAttribute('y', -16); r.setAttribute('width', w); r.setAttribute('height', 32); r.setAttribute('rx', 16);
+  r.setAttribute('fill', kind === 'tampered' ? '#fef2f2' : kind === 'signed' ? '#fffbeb' : kind === 'pubkey' ? '#f0fdf4' : '#eff6ff');
+  r.setAttribute('stroke', kind === 'tampered' ? '#dc2626' : kind === 'signed' ? '#d97706' : kind === 'pubkey' ? '#16a34a' : '#2563eb'); r.setAttribute('stroke-width', 1.5); g.appendChild(r);
+  const t = document.createElementNS(NS, 'text'); t.setAttribute('class', 'packet mono'); t.setAttribute('text-anchor', 'middle'); t.setAttribute('y', 4.5); t.setAttribute('x', kind !== 'plain' ? 10 : 0); t.textContent = label; g.appendChild(t);
+  if (kind !== 'plain') { // seal / key glyph at the left end
+    const c = document.createElementNS(NS, 'circle'); c.setAttribute('cx', -w / 2 + 16); c.setAttribute('cy', 0); c.setAttribute('r', 8);
+    c.setAttribute('fill', kind === 'pubkey' ? '#16a34a' : kind === 'tampered' ? '#dc2626' : '#dc2626'); g.appendChild(c);
+    const s = document.createElementNS(NS, 'text'); s.setAttribute('x', -w / 2 + 16); s.setAttribute('y', 4); s.setAttribute('text-anchor', 'middle'); s.setAttribute('font-size', kind === 'signed' ? '8.5' : '11'); s.setAttribute('font-weight', '700'); s.setAttribute('fill', '#fff');
+    s.textContent = kind === 'pubkey' ? 'pk' : kind === 'tampered' ? '✗' : 'sig'; g.appendChild(s);
+  }
+  const arrow = document.createElementNS(NS, 'path'); const dir = P[to].cx > P[from].cx ? 1 : -1;
+  arrow.setAttribute('d', `M${dir * (w / 2)} -6 l${dir * 9} 6 l${dir * -9} 6`); arrow.setAttribute('fill', 'none'); arrow.setAttribute('stroke', r.getAttribute('stroke')); arrow.setAttribute('stroke-width', 2); g.appendChild(arrow);
+  packets.push({ g, from, to, lane, t0, t1, w });
+}
+// ---- timeline --------------------------------------------------------------------
+// [t0, t1, step label, caption]
+const captions = [
+  [0, 3, '', 'Authorization Code flow with PKCE - and how the API verifies the JWT'],
+  [3, 6.5, '1', 'The SPA generates a secret code_verifier and derives code_challenge = SHA-256(verifier).'],
+  [6.5, 10.5, '2', 'Redirect to the IdP: client_id, redirect_uri, scope, state, nonce and the code_challenge (never the verifier).'],
+  [10.5, 14, '3', 'The user authenticates at the IdP (password, MFA, SSO). The application never sees the credentials.'],
+  [14, 17.5, '4', 'The IdP redirects back with a one-time code and the state. The SPA checks that state matches.'],
+  [17.5, 21.5, '5', 'The SPA posts the code and the code_verifier. The IdP checks SHA-256(verifier) == code_challenge.'],
+  [21.5, 26.5, '6', 'The IdP signs the JWT with its PRIVATE key (RS256, kid) and returns access, ID and refresh tokens.'],
+  [26.5, 30, '7', 'The SPA calls the API with  Authorization: Bearer <access token>.'],
+  [30, 35, '8', 'Unknown kid: the API fetches the PUBLIC keys from the IdP (/jwks, via discovery) and caches them.'],
+  [35, 40.5, '9', 'The API verifies signature, iss, aud, exp/nbf and roles - locally, no call to the IdP per request.'],
+  [40.5, 43.5, '10', '200 OK. Only now does the request reach the business logic.'],
+  [43.5, 48, '11', 'Next request: same token, cached public key - no round trip to the IdP.'],
+  [48, 53.5, '12', 'A tampered token (payload edited) fails the signature check: 401 invalid_token.'],
+  [53.5, 58, '', 'Private key: only at the IdP.  Public keys: anyone may fetch.  Signature + iss + aud + exp + roles: checked on every call.'],
+];
+packet('browser', 'idp', LANE_A, 7, 10, 'GET /authorize  client_id, redirect_uri, scope, state, nonce, code_challenge');
+packet('idp', 'browser', LANE_A, 14.3, 17.2, '302 redirect_uri ?code=8f3a… &state=xK9…');
+packet('browser', 'idp', LANE_A, 17.8, 21, 'POST /token  code=8f3a…  code_verifier=Yz2…');
+packet('idp', 'browser', LANE_A, 23.5, 26.3, 'access token (JWT) · id token · refresh token', 'signed');
+packet('browser', 'api', LANE_B, 26.8, 29.8, 'GET /api/orders   Authorization: Bearer eyJhbGciOiJSUzI1Ni…', 'signed');
+packet('api', 'idp', LANE_A, 30.3, 32.3, 'GET /jwks   (kid nPy6… not cached)');
+packet('idp', 'api', LANE_A, 32.5, 34.8, 'JWKS { kid: nPy6…, kty: RSA, n, e }', 'pubkey');
+packet('api', 'browser', LANE_B, 40.8, 43.3, '200 OK  [ {id: ord-1, item: …}, … ]');
+packet('browser', 'api', LANE_B, 43.8, 45.8, 'GET /api/orders   Authorization: Bearer eyJ…', 'signed');
+packet('api', 'browser', LANE_B, 46, 47.8, '200 OK  (cached key, ~0 ms)');
+packet('browser', 'api', LANE_B, 48.3, 50.5, 'GET /api/admin/stats   Bearer eyJ…  (roles edited to [admin])', 'tampered');
+packet('api', 'browser', LANE_B, 51.5, 53.3, '401 Unauthorized   Bearer error="invalid_token"');
+
+// legend
+el('text', { class: 'sub', x: 60, y: 330 }, 'sig = signed with the IdP private key  ·  pk = public key (JWKS)  ·  ✗ = tampered token');
+// caption bar
+el('rect', { x: 40, y: 470, width: 880, height: 50, rx: 10, fill: '#ffffff', stroke: '#e5e7eb' });
+const stepBadge = el('rect', { x: 52, y: 483, width: 30, height: 24, rx: 12, fill: '#2563eb' });
+const stepText = el('text', { class: 'step', x: 67, y: 500, 'text-anchor': 'middle' }, '');
+const capText = el('text', { class: 'caption', x: 94, y: 500 }, '');
+const progress = el('rect', { x: 40, y: 528, width: 0, height: 4, rx: 2, fill: '#2563eb' });
+const TOTAL = 58;
+
+function render(t) {
+  // caption
+  const cap = captions.find(c => t >= c[0] && t < c[1]) || captions[captions.length - 1];
+  capText.textContent = cap[3]; stepText.textContent = cap[2]; stepBadge.setAttribute('opacity', cap[2] ? 1 : 0);
+  if (!cap[2]) capText.setAttribute('x', 56); else capText.setAttribute('x', 94);
+  progress.setAttribute('width', 880 * clamp(t / TOTAL, 0, 1));
+  // browser slots
+  S.verifier.textContent = t >= 3.6 ? 'Yz2n…kQ  (43 chars, kept here)' : '—';
+  S.challenge.textContent = t >= 4.8 ? 'SCDX6pb1Gt1Q…SdeU' : '—';
+  S.state.textContent = t < 7 ? '—' : t < 15.5 ? 'sent: state=xK9…  nonce=q7…' : t < 26.5 ? 'state ✓ matches' : 'nonce ✓ (id token)';
+  S.tokens.textContent = t >= 26.3 ? 'JWT (sig) + id token + refresh' : '—';
+  S.tokens.setAttribute('fill', t >= 26.3 ? '#b45309' : '#1f2937');
+  // IdP internals
+  idpLogin.setAttribute('opacity', t >= 10.5 && t < 17.5 ? 1 : 0);
+  idpCheck.setAttribute('opacity', (t >= 20.3 && t < 26.5) ? 1 : 0);
+  idpCheck.textContent = t < 21.5 ? 'SHA-256(code_verifier) == code_challenge ✓' : 'sign(header.payload, private key) → JWT';
+  idpPriv.setAttribute('transform', `translate(${P.idp.x + 20},${BOX_Y + 80}) scale(${t >= 21.5 && t < 23.5 ? 1.25 : 1})`);
+  idpPub.setAttribute('transform', `translate(${P.idp.x + 20},${BOX_Y + 108}) scale(${t >= 32 && t < 35 ? 1.25 : 1})`);
+  // API internals
+  S.jwks.textContent = t >= 34.8 ? 'kid nPy6… → RSA public key (cached)' : t >= 30 ? 'miss for kid nPy6…' : '—';
+  S.jwks.setAttribute('fill', t >= 34.8 ? '#15803d' : '#1f2937');
+  checkEls.forEach((c, i) => {
+    const on = t >= 35.5 + i * 0.9 && t < 48.3 ? 1 : (t >= 48.3 ? (i === 0 ? 1 : 0.25) : 0.25);
+    c.setAttribute('opacity', on);
+    let txt = '○ ' + checks[i];
+    if (t >= 35.5 + i * 0.9 && t < 48.3) txt = '✓ ' + checks[i];
+    if (t >= 50.5 && i === 0) { txt = '✗ signature: payload was changed'; c.setAttribute('fill', '#dc2626'); } else c.setAttribute('fill', '#1f2937');
+    if (t >= 43.5 && t < 48.3 && i === 0) txt = '✓ signature  (cached key, no fetch)';
+    c.textContent = txt;
+  });
+  // party highlight
+  for (const [k, p] of Object.entries(P)) p.rect.setAttribute('stroke-width', 2);
+  const active = t < 6.5 ? 'browser' : t < 10.5 ? 'idp' : t < 14 ? 'idp' : t < 17.5 ? 'browser' : t < 26.5 ? 'idp' : t < 30 ? 'browser' : t < 35 ? 'idp' : t < 43.5 ? 'api' : t < 48 ? 'api' : 'api';
+  P[active].rect.setAttribute('stroke-width', 4);
+  // packets
+  for (const p of packets) {
+    const { g, from, to, lane, t0, t1, w } = p;
+    if (t < t0 || t > t1 + 0.35) { g.setAttribute('opacity', 0); continue; }
+    const prog = ease(clamp((t - t0) / (t1 - t0), 0, 1));
+    const x = clamp(lerp(P[from].cx, P[to].cx, prog), 44 + w / 2, 916 - w / 2); // keep the pill on the canvas
+    const fade = t > t1 ? 1 - (t - t1) / 0.35 : Math.min(1, (t - t0) / 0.25);
+    g.setAttribute('opacity', fade);
+    g.setAttribute('transform', `translate(${x},${lane})`);
+  }
+}
+window.render = render;
+window.TOTAL = TOTAL;
+// live preview when opened in a browser
+if (!navigator.webdriver) { const start = performance.now(); (function tick() { render(((performance.now() - start) / 1000) % (TOTAL + 1)); requestAnimationFrame(tick); })(); }
+</script>

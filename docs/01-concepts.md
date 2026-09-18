@@ -71,6 +71,12 @@ This is the only login flow the applications use (the implicit flow is obsolete)
 
 ![Sequence diagram of the Authorization Code flow with PKCE between browser, identity provider and REST API](images/code-flow-pkce.svg)
 
+The animated version below adds the second half of the story, what the API does with the token: it shows the code_verifier staying in the browser, the private key staying at the IdP, the public keys travelling to the API through the JWKS endpoint, the checks the API performs on every request, and what happens to a tampered token.
+
+![Animated: tokens, keys and signature travelling between browser, identity provider and API](images/auth-flow.gif)
+
+*Regenerate with `node docs/images/animation/render.mjs` (the scene is [auth-flow.html](images/animation/auth-flow.html), which you can also open in a browser to watch it live).*
+
 1. The client generates a random `code_verifier` and derives `code_challenge = BASE64URL(SHA-256(code_verifier))`.
 2. It redirects the browser to the IdP's `authorization_endpoint` with `response_type=code`, `client_id`, `redirect_uri`, `scope`, `state`, `nonce`, `code_challenge` and `code_challenge_method=S256`.
 3. The user authenticates *at the IdP* (password, MFA, SSO cookie); the application never sees the credentials.

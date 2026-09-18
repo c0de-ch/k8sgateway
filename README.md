@@ -123,6 +123,10 @@ All four are driven by the same set of environment variables (`OIDC_ISSUER`, `OI
 
 ## How the pieces talk
 
+![Animated: the Authorization Code flow with PKCE, the IdP signing the JWT with its private key, the API fetching the public keys and verifying signature, issuer, audience, expiry and roles](docs/images/auth-flow.gif)
+
+*What travels where: the code_verifier never leaves the browser, the private key never leaves the IdP, the API only ever holds public keys, and a tampered token fails the signature check. Source and renderer in [docs/images/animation](docs/images/animation).*
+
 The browser opens `http://<name>.127.0.0.1.nip.io`; nip.io resolves that to `127.0.0.1`, kind forwards host port 80 to NodePort 30080, and the Envoy proxy behind the `Gateway` routes on the `Host` header to the matching `HTTPRoute`. A frontend that needs a login redirects the browser to the IdP's authorization endpoint and later exchanges the code for tokens; every call to an API carries `Authorization: Bearer <access token>`. The APIs download the IdP's public keys once (`jwks_uri` from discovery) and validate every token locally: signature, issuer, audience, expiry, then roles. Because pods resolve `*.127.0.0.1.nip.io` to the Envoy Service (a CoreDNS rewrite), the issuer URL in the browser, in the token's `iss` claim and in the pods' configuration is one and the same string, which is exactly what OIDC validation requires.
 
 ## License
