@@ -1,0 +1,40 @@
+<header class="topbar">
+  <a routerLink="/" class="brand"><span class="dot"></span> k8sgateway &middot; Angular</a>
+  <span class="badge idp" title="Identity provider from config.json">{{ idpName() }}</span>
+  <nav>
+    <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Home</a>
+    <a routerLink="/profile" routerLinkActive="active">Profile</a>
+    <a routerLink="/orders" routerLinkActive="active">Orders</a>
+    @if (auth.isAdmin()) {
+      <a routerLink="/admin" routerLinkActive="active">Admin</a>
+    }
+    <a routerLink="/graphql" routerLinkActive="active">GraphQL</a>
+  </nav>
+  <span class="spacer"></span>
+  <div class="user">
+    @if (auth.isAuthenticated()) {
+      <strong>{{ auth.displayName() }}</strong>
+      @for (r of auth.roles(); track r) {
+        <span class="badge" [class.admin]="r === cfg()?.roleAdmin" [class.user]="r === cfg()?.roleUser">{{ r }}</span>
+      }
+      <button class="btn sm" (click)="auth.logout()">Logout</button>
+    } @else {
+      <button class="btn sm primary" (click)="login()" [disabled]="!auth.ready()">Login</button>
+    }
+  </div>
+</header>
+
+<main class="container">
+  @if (auth.error(); as err) {
+    <div class="banner error">
+      <strong>Authentication problem</strong>
+      <p><code>{{ err }}</code></p>
+      <p class="muted">Is the IdP at <code>{{ cfg()?.issuer }}</code> reachable from this browser? Check
+        <code>config.json</code> and the IdP's client registration (redirect URI, CORS / web origins).</p>
+      <div class="actions"><button class="btn sm" (click)="auth.error.set(null)">Dismiss</button></div>
+    </div>
+  }
+  <router-outlet />
+</main>
+
+<footer>k8sgateway tutorial &middot; Angular 22 + angular-oauth2-oidc &middot; tokens issued by {{ idpName() }}</footer>

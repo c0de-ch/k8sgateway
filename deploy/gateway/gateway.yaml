@@ -1,0 +1,27 @@
+# The single Gateway every example routes through. Listens on port 80 and
+# accepts HTTPRoutes from any namespace (apps live in k8sgateway, IdPs in idp).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: k8sgateway
+  labels:
+    app.kubernetes.io/name: k8sgateway
+    app.kubernetes.io/part-of: k8sgateway
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: main
+  namespace: k8sgateway
+  labels:
+    app.kubernetes.io/name: main
+    app.kubernetes.io/part-of: k8sgateway
+spec:
+  gatewayClassName: eg
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: All

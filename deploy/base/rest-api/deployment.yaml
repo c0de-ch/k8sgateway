@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rest-api
+  namespace: k8sgateway
+  labels:
+    app.kubernetes.io/name: rest-api
+    app.kubernetes.io/part-of: k8sgateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rest-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rest-api
+        app.kubernetes.io/part-of: k8sgateway
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532 # "nonroot" user of the distroless image
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: rest-api
+          image: k8sgateway/rest-api:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            # Optional TLS mode (scripts/tls-setup.sh): the local CA that signed the
+            # gateway certificate, so the API can fetch discovery/JWKS from an
+            # https:// issuer. Go loads it IN ADDITION to the system roots; when the
+            # file is missing or empty (plain-http mode) only the system roots are used.
+            - name: SSL_CERT_FILE
+              value: /etc/k8sgateway-ca/ca.crt
+          envFrom:
+            - configMapRef:
+                name: rest-api-config
+          volumeMounts:
+            - name: ca
+              mountPath: /etc/k8sgateway-ca
+              readOnly: true
+          # /readyz turns 200 once the OIDC discovery document / JWKS was
+          # fetched (or after the first attempt), so a slow IdP only delays
+          # readiness instead of crash-looping the API.
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: ca
+          configMap:
+            name: k8sgateway-ca # empty until scripts/tls-setup.sh puts the local CA in it
+            optional: true

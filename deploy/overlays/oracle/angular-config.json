@@ -1,0 +1,14 @@
+{
+  "idpName": "Oracle IAM Identity Domains",
+  "issuer": "https://<DOMAIN_URL>",
+  "clientId": "<ANGULAR_CLIENT_ID>",
+  "scope": "openid profile email offline_access https://api.k8sgateway.local/orders.read",
+  "requireHttps": true,
+  "strictDiscoveryDocumentValidation": false,
+  "skipIssuerCheck": true,
+  "apiUrl": "http://api.127.0.0.1.nip.io",
+  "graphqlUrl": "http://graphql.127.0.0.1.nip.io/graphql",
+  "rolesClaim": "groups",
+  "roleUser": "user",
+  "roleAdmin": "admin"
+}

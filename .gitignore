@@ -1,0 +1,16 @@
+# dependencies and build output
+node_modules/
+dist/
+.next/
+out/
+coverage/
+*.log
+.env
+.DS_Store
+
+# local TLS material (scripts/tls-setup.sh)
+deploy/tls/certs/
+
+# personal copies of the cloud IdP overlays with real tenant values
+deploy/overlays/*.local/
+deploy/overlays/**/*.local

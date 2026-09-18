@@ -1,0 +1,19 @@
+{
+  "name": "mock-idp",
+  "version": "1.0.0",
+  "description": "Development OpenID Connect provider for the k8sgateway tutorial - imitates generic OIDC, Keycloak, Microsoft Entra ID and Oracle IAM token shapes",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "express": "5.2.1",
+    "jose": "6.2.12"
+  }
+}

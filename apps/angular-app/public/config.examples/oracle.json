@@ -1,0 +1,24 @@
+{
+  "_notes": [
+    "Oracle IAM Identity Domains (formerly IDCS). Create the SPA as a 'Mobile Application' (public client, no secret),",
+    "grant types Authorization code + Refresh token, tick 'Allow non-HTTPS URLs' only for local http:// testing.",
+    "Discovery lives at https://idcs-<GUID>.identity.oraclecloud.com/.well-known/openid-configuration but the",
+    "document's 'issuer' is the fixed string https://identity.oraclecloud.com/ -> skipIssuerCheck must be true",
+    "and strictDiscoveryDocumentValidation false. Verify the iss of a real token from your tenant.",
+    "Scopes are fully qualified: <primary audience of the resource app> + <scope>, e.g. https://api.k8sgateway.local/orders.",
+    "Roles: Oracle exposes groups/app roles via scopes (groups, approles) and the userinfo endpoint; a groups claim",
+    "inside the ACCESS token needs a custom claim - decode a real token and set rolesClaim accordingly."
+  ],
+  "idpName": "Oracle IAM Identity Domains",
+  "issuer": "https://idcs-<GUID>.identity.oraclecloud.com",
+  "clientId": "<ORACLE_CLIENT_ID>",
+  "scope": "openid profile email offline_access <PRIMARY_AUDIENCE><SCOPE>",
+  "requireHttps": true,
+  "strictDiscoveryDocumentValidation": false,
+  "skipIssuerCheck": true,
+  "apiUrl": "https://api.127.0.0.1.nip.io",
+  "graphqlUrl": "https://graphql.127.0.0.1.nip.io/graphql",
+  "rolesClaim": "groups",
+  "roleUser": "user",
+  "roleAdmin": "admin"
+}

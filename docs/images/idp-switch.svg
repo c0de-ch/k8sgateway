@@ -1,0 +1,131 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="930" viewBox="0 0 1400 930" role="img" aria-labelledby="title desc" font-family="Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif">
+  <title id="title">Switching the identity provider through configuration only</title>
+  <desc id="desc">Four IdP cards (mock, Keycloak, Microsoft Entra ID, Oracle IAM Identity Domains) with issuer pattern and roles claim feed a ConfigMap with OIDC_ISSUER, OIDC_AUDIENCE, ROLES_CLAIM, OIDC_SCOPE and OIDC_CLIENT_ID; the same unchanged application images consume it; make switch IDP=keycloak performs the switch.</desc>
+  <defs>
+    <marker id="arr-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M1,1 L9,5 L1,9 Z" fill="#2563eb"/></marker>
+    <marker id="arr-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M1,1 L9,5 L1,9 Z" fill="#16a34a"/></marker>
+    <marker id="arr-amber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M1,1 L9,5 L1,9 Z" fill="#d97706"/></marker>
+    <marker id="arr-grey" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M1,1 L9,5 L1,9 Z" fill="#6b7280"/></marker>
+    <marker id="arr-slate" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M1,1 L9,5 L1,9 Z" fill="#1f2937"/></marker>
+  </defs>
+  <!-- light canvas so the diagram stays legible on GitHub dark mode -->
+  <rect x="0.5" y="0.5" width="1399" height="929" rx="16" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="40" y="50" font-size="24" fill="#1f2937" font-weight="700">Switching the identity provider — same images, different configuration</text>
+  <text x="40" y="78" font-size="15" fill="#6b7280">make switch IDP=&lt;mock|keycloak|entra|oracle&gt; renders deploy/overlays/&lt;idp&gt; (one ConfigMap per app), applies it and restarts the apps. No image is rebuilt, no code changes.</text>
+  <rect x="40" y="112" width="320" height="270" rx="14" fill="#ffffff" stroke="#16a34a" stroke-width="1.6" stroke-dasharray="5 4"/>
+  <text x="58" y="134" font-size="11" fill="#6b7280" font-weight="700">DEVELOPMENT</text>
+  <text x="58" y="158" font-size="16" fill="#1f2937" font-weight="700">Mock IdP</text>
+  <text x="58" y="186" font-size="12.5" fill="#6b7280">runs in namespace idp · fakes real IdPs</text>
+  <text x="58" y="206" font-size="11.5" fill="#6b7280" font-weight="700">OIDC_ISSUER</text>
+  <text x="58" y="226" font-size="12" fill="#16a34a" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">http://idp.127.0.0.1.nip.io</text>
+  <text x="58" y="246" font-size="11.5" fill="#6b7280" font-weight="700">ROLES_CLAIM</text>
+  <text x="58" y="266" font-size="12.5" fill="#2563eb" font-weight="700" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">roles</text>
+  <text x="58" y="286" font-size="11.5" fill="#6b7280" font-weight="700">MOCK_FLAVOR</text>
+  <text x="58" y="306" font-size="12" fill="#6b7280" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">generic | keycloak | entra | oracle</text>
+  <text x="58" y="326" font-size="11.5" fill="#6b7280" font-weight="700">OIDC_SCOPE</text>
+  <text x="58" y="346" font-size="12" fill="#16a34a" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">openid profile email</text>
+  <text x="58" y="366" font-size="12" fill="#6b7280">PKCE · demo users alice / bob / carol</text>
+  <rect x="376" y="112" width="320" height="270" rx="14" fill="#ffffff" stroke="#16a34a" stroke-width="1.6"/>
+  <text x="394" y="134" font-size="11" fill="#6b7280" font-weight="700">IN-CLUSTER</text>
+  <text x="394" y="158" font-size="16" fill="#1f2937" font-weight="700">Keycloak 26.7</text>
+  <text x="394" y="186" font-size="12.5" fill="#6b7280">runs in namespace idp · realm import</text>
+  <text x="394" y="206" font-size="11.5" fill="#6b7280" font-weight="700">OIDC_ISSUER</text>
+  <text x="394" y="226" font-size="12" fill="#16a34a" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">http://keycloak.127.0.0.1.nip.io</text>
+  <text x="394" y="246" font-size="12" fill="#16a34a" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">/realms/k8sgateway</text>
+  <text x="394" y="266" font-size="11.5" fill="#6b7280" font-weight="700">ROLES_CLAIM</text>
+  <text x="394" y="286" font-size="12.5" fill="#2563eb" font-weight="700" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">realm_access.roles</text>
+  <text x="394" y="306" font-size="12.5" fill="#6b7280">audience mapper adds aud k8sgateway-api</text>
+  <text x="394" y="326" font-size="11.5" fill="#6b7280" font-weight="700">OIDC_SCOPE</text>
+  <text x="394" y="346" font-size="12" fill="#16a34a" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">openid profile email</text>
+  <text x="394" y="366" font-size="12" fill="#6b7280">never offline_access (= offline tokens)</text>
+  <rect x="712" y="112" width="320" height="270" rx="14" fill="#ffffff" stroke="#16a34a" stroke-width="1.6"/>
+  <text x="730" y="134" font-size="11" fill="#6b7280" font-weight="700">CLOUD</text>
+  <text x="730" y="158" font-size="16" fill="#1f2937" font-weight="700">Microsoft Entra ID</text>
+  <text x="730" y="186" font-size="12.5" fill="#6b7280">tenant in Azure · app registrations</text>
+  <text x="730" y="206" font-size="11.5" fill="#6b7280" font-weight="700">OIDC_ISSUER</text>
+  <text x="730" y="226" font-size="12" fill="#16a34a" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">https://login.microsoftonline.com/</text>
+  <text x="730" y="246" font-size="12" fill="#16a34a" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">&lt;TENANT_ID&gt;/v2.0</text>
+  <text x="730" y="266" font-size="11.5" fill="#6b7280" font-weight="700">ROLES_CLAIM</text>
+  <text x="730" y="286" font-size="12.5" fill="#2563eb" font-weight="700" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">roles</text>
+  <text x="730" y="306" font-size="12.5" fill="#6b7280">app roles on the API registration</text>
+  <text x="730" y="326" font-size="11.5" fill="#6b7280" font-weight="700">OIDC_SCOPE</text>
+  <text x="730" y="346" font-size="12" fill="#16a34a" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">openid profile email offline_access</text>
+  <text x="730" y="366" font-size="12" fill="#16a34a" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">api://&lt;API_CLIENT_ID&gt;/access_as_user</text>
+  <rect x="1048" y="112" width="320" height="270" rx="14" fill="#ffffff" stroke="#16a34a" stroke-width="1.6"/>
+  <text x="1066" y="134" font-size="11" fill="#6b7280" font-weight="700">CLOUD</text>
+  <text x="1066" y="158" font-size="16" fill="#1f2937" font-weight="700">Oracle IAM Identity Domains</text>
+  <text x="1066" y="186" font-size="11.5" fill="#6b7280" font-weight="700">OIDC_ISSUER (discovery)</text>
+  <text x="1066" y="206" font-size="12" fill="#16a34a" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">https://idcs-&lt;guid&gt;.</text>
+  <text x="1066" y="226" font-size="12" fill="#16a34a" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">identity.oraclecloud.com</text>
+  <text x="1066" y="246" font-size="11.5" fill="#6b7280" font-weight="700">OIDC_ISSUER_CLAIM (iss differs!)</text>
+  <text x="1066" y="266" font-size="12" fill="#16a34a" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">https://identity.oraclecloud.com/</text>
+  <text x="1066" y="286" font-size="11.5" fill="#6b7280" font-weight="700">ROLES_CLAIM (*verify with a decoded token)</text>
+  <text x="1066" y="306" font-size="12.5" fill="#2563eb" font-weight="700" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">groups*</text>
+  <text x="1066" y="326" font-size="12" fill="#6b7280" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">JWKS &lt;domain&gt;/admin/v1/SigningCert/jwk</text>
+  <text x="1066" y="346" font-size="12" fill="#6b7280">scope adds offline_access + resource scope</text>
+  <text x="1066" y="366" font-size="12" fill="#6b7280">token endpoint auth: client_secret_basic</text>
+
+  <!-- the switch -->
+  <path d="M200.0,382 V410 H490 V428" fill="none" stroke="#6b7280" stroke-width="1.4" stroke-linejoin="round" marker-end="url(#arr-grey)"/>
+  <line x1="536.0" y1="382" x2="536.0" y2="428" stroke="#6b7280" stroke-width="1.4" marker-end="url(#arr-grey)"/>
+  <line x1="872.0" y1="382" x2="872.0" y2="428" stroke="#6b7280" stroke-width="1.4" marker-end="url(#arr-grey)"/>
+  <path d="M1208.0,382 V410 H910 V428" fill="none" stroke="#6b7280" stroke-width="1.4" stroke-linejoin="round" marker-end="url(#arr-grey)"/>
+  <rect x="400" y="428" width="600" height="44" rx="10" fill="#111827" stroke="#111827" stroke-width="1.5"/>
+  <text x="420" y="456" font-size="15" fill="#4ade80" font-weight="700" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">$ make switch IDP=keycloak</text>
+  <text x="980" y="456" font-size="13" fill="#9ca3af" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace"># mock | keycloak | entra | oracle</text>
+
+  <!-- ConfigMap -->
+  <line x1="700.0" y1="472" x2="700.0" y2="532" stroke="#6b7280" stroke-width="1.6" marker-end="url(#arr-grey)"/>
+  <text x="712.0" y="508" font-size="12.5" fill="#6b7280" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">scripts/deploy.sh: render.sh &lt;idp&gt; | kubectl apply -f -</text>
+  <rect x="250" y="532" width="900" height="160" rx="14" fill="#eff6ff" stroke="#2563eb" stroke-width="1.6"/>
+  <text x="270" y="562" font-size="16" fill="#2563eb" font-weight="700">ConfigMap per app (kustomize configMapGenerator)</text>
+  <text x="270" y="592" font-size="12.5" fill="#1f2937" font-weight="700" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">OIDC_ISSUER</text>
+  <text x="450" y="592" font-size="12" fill="#6b7280">discovery base URL</text>
+  <text x="680" y="592" font-size="12.5" fill="#1f2937" font-weight="700" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">OIDC_CLIENT_ID</text>
+  <text x="870" y="592" font-size="12" fill="#6b7280">angular-app / nextjs-app</text>
+  <text x="270" y="616" font-size="12.5" fill="#1f2937" font-weight="700" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">OIDC_ISSUER_CLAIM</text>
+  <text x="450" y="616" font-size="12" fill="#6b7280">expected iss (Oracle differs)</text>
+  <text x="680" y="616" font-size="12.5" fill="#1f2937" font-weight="700" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">OIDC_SCOPE</text>
+  <text x="870" y="616" font-size="12" fill="#6b7280">openid profile email + per-IdP scopes</text>
+  <text x="270" y="640" font-size="12.5" fill="#1f2937" font-weight="700" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">OIDC_JWKS_URI</text>
+  <text x="450" y="640" font-size="12" fill="#6b7280">optional JWKS override</text>
+  <text x="680" y="640" font-size="12.5" fill="#1f2937" font-weight="700" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">ROLES_CLAIM</text>
+  <text x="870" y="640" font-size="12" fill="#6b7280">dotted path to the roles array</text>
+  <text x="270" y="664" font-size="12.5" fill="#1f2937" font-weight="700" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">OIDC_AUDIENCE</text>
+  <text x="450" y="664" font-size="12" fill="#6b7280">must be in aud (APIs)</text>
+  <text x="680" y="664" font-size="12.5" fill="#1f2937" font-weight="700" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">ROLE_USER / ROLE_ADMIN</text>
+  <text x="870" y="664" font-size="12" fill="#6b7280">values that grant user / admin</text>
+
+  <!-- application images, unchanged -->
+  <line x1="700.0" y1="692" x2="700.0" y2="726" stroke="#6b7280" stroke-width="1.6"/>
+  <line x1="200.0" y1="726" x2="1208.0" y2="726" stroke="#6b7280" stroke-width="1.6"/>
+  <line x1="200.0" y1="726" x2="200.0" y2="786" stroke="#6b7280" stroke-width="1.6" marker-end="url(#arr-grey)"/>
+  <text x="208.0" y="754" font-size="12" fill="#6b7280">config.json (ConfigMap subPath)</text>
+  <rect x="40" y="786" width="320" height="96" rx="12" fill="#ffffff" stroke="#2563eb" stroke-width="1.6"/>
+  <text x="58" y="816" font-size="13.5" fill="#2563eb" font-weight="700" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">k8sgateway/angular-app:dev</text>
+  <rect x="58" y="830" width="132" height="22" rx="11.0" fill="#f3f4f6" stroke="#6b7280" stroke-width="1"/>
+  <text x="124.0" y="844.96" font-size="12" fill="#6b7280" font-weight="600" text-anchor="middle">image unchanged</text>
+  <text x="58" y="870" font-size="12" fill="#6b7280">discovers the IdP endpoints at start</text>
+  <line x1="536.0" y1="726" x2="536.0" y2="786" stroke="#6b7280" stroke-width="1.6" marker-end="url(#arr-grey)"/>
+  <text x="544.0" y="754" font-size="12" fill="#6b7280">env vars (envFrom)</text>
+  <rect x="376" y="786" width="320" height="96" rx="12" fill="#ffffff" stroke="#2563eb" stroke-width="1.6"/>
+  <text x="394" y="816" font-size="13.5" fill="#2563eb" font-weight="700" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">k8sgateway/nextjs-app:dev</text>
+  <rect x="394" y="830" width="132" height="22" rx="11.0" fill="#f3f4f6" stroke="#6b7280" stroke-width="1"/>
+  <text x="460.0" y="844.96" font-size="12" fill="#6b7280" font-weight="600" text-anchor="middle">image unchanged</text>
+  <text x="394" y="870" font-size="12" fill="#6b7280">discovers the IdP endpoints at start</text>
+  <line x1="872.0" y1="726" x2="872.0" y2="786" stroke="#6b7280" stroke-width="1.6" marker-end="url(#arr-grey)"/>
+  <text x="880.0" y="754" font-size="12" fill="#6b7280">env vars (envFrom)</text>
+  <rect x="712" y="786" width="320" height="96" rx="12" fill="#ffffff" stroke="#2563eb" stroke-width="1.6"/>
+  <text x="730" y="816" font-size="13.5" fill="#2563eb" font-weight="700" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">k8sgateway/rest-api:dev</text>
+  <rect x="730" y="830" width="132" height="22" rx="11.0" fill="#f3f4f6" stroke="#6b7280" stroke-width="1"/>
+  <text x="796.0" y="844.96" font-size="12" fill="#6b7280" font-weight="600" text-anchor="middle">image unchanged</text>
+  <text x="730" y="870" font-size="12" fill="#6b7280">discovers the IdP endpoints at start</text>
+  <line x1="1208.0" y1="726" x2="1208.0" y2="786" stroke="#6b7280" stroke-width="1.6" marker-end="url(#arr-grey)"/>
+  <text x="1216.0" y="754" font-size="12" fill="#6b7280">env vars (envFrom)</text>
+  <rect x="1048" y="786" width="320" height="96" rx="12" fill="#ffffff" stroke="#2563eb" stroke-width="1.6"/>
+  <text x="1066" y="816" font-size="13.5" fill="#2563eb" font-weight="700" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">k8sgateway/graphql-api:dev</text>
+  <rect x="1066" y="830" width="132" height="22" rx="11.0" fill="#f3f4f6" stroke="#6b7280" stroke-width="1"/>
+  <text x="1132.0" y="844.96" font-size="12" fill="#6b7280" font-weight="600" text-anchor="middle">image unchanged</text>
+  <text x="1066" y="870" font-size="12" fill="#6b7280">discovers the IdP endpoints at start</text>
+  <text x="40" y="906" font-size="13" fill="#6b7280">The code never changes: each app reads ${OIDC_ISSUER}/.well-known/openid-configuration at start and validates tokens against the configured issuer, audience and roles claim.</text>
+</svg>

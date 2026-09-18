@@ -1,0 +1,81 @@
+# Optional TLS mode. Applied by scripts/tls-setup.sh after it created the
+# Secret k8sgateway-tls (local CA + wildcard certificate for *.127.0.0.1.nip.io).
+#
+# 1. The EnvoyProxy gains a second NodePort (443 -> 30443, which
+#    deploy/kind/kind-config.yaml maps to host port 443) plus the in-cluster
+#    alias 8443 (HTTPS_PORT=8443 on hosts that cannot bind 443).
+# 2. The Gateway gains an https listener that terminates TLS with the Secret.
+#    The http listener stays, so plain-http URLs keep working; render the
+#    overlays with SCHEME=https to switch the applications over
+#    (SCHEME=https scripts/switch-idp.sh <idp> - the pods trust the CA through
+#    the ConfigMap k8sgateway-ca that tls-setup.sh fills).
+#
+# kubectl apply replaces the whole `ports` list of the patch, so the entries
+# from deploy/gateway/envoyproxy.yaml are repeated here.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: k8sgateway-proxy
+  namespace: envoy-gateway-system
+  labels:
+    app.kubernetes.io/name: envoy-proxy
+    app.kubernetes.io/part-of: k8sgateway
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyDeployment:
+        replicas: 1
+      envoyService:
+        type: NodePort
+        patch:
+          type: StrategicMerge # merges by port; JSONMerge would drop the generated entries
+          value:
+            spec:
+              ports:
+                - name: http-80
+                  port: 80
+                  protocol: TCP
+                  nodePort: 30080
+                - name: http-alt
+                  port: 8080
+                  targetPort: 10080
+                  protocol: TCP
+                - name: https-443
+                  port: 443
+                  protocol: TCP
+                  nodePort: 30443
+                - name: https-alt
+                  port: 8443
+                  targetPort: 10443
+                  protocol: TCP
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: main
+  namespace: k8sgateway
+  labels:
+    app.kubernetes.io/name: main
+    app.kubernetes.io/part-of: k8sgateway
+spec:
+  gatewayClassName: eg
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: All
+    - name: https
+      protocol: HTTPS
+      port: 443
+      hostname: "*.127.0.0.1.nip.io"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: k8sgateway-tls # created by scripts/tls-setup.sh
+      allowedRoutes:
+        namespaces:
+          from: All

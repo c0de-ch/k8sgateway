@@ -1,0 +1,201 @@
+{
+  "realm": "k8sgateway",
+  "displayName": "k8sgateway demo realm",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "attributes": {
+    "CreateDefaultClientScopes": "true"
+  },
+  "roles": {
+    "realm": [
+      {
+        "name": "user",
+        "description": "Regular application user (may read and create orders)"
+      },
+      {
+        "name": "admin",
+        "description": "Application administrator (may see admin statistics)"
+      }
+    ]
+  },
+  "users": [
+    {
+      "username": "alice",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Alice",
+      "lastName": "Admin",
+      "email": "alice@example.com",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "alice",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "default-roles-k8sgateway",
+        "admin",
+        "user"
+      ]
+    },
+    {
+      "username": "bob",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Bob",
+      "lastName": "User",
+      "email": "bob@example.com",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "bob",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "default-roles-k8sgateway",
+        "user"
+      ]
+    },
+    {
+      "username": "carol",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Carol",
+      "lastName": "Guest",
+      "email": "carol@example.com",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "carol",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "default-roles-k8sgateway"
+      ]
+    },
+    {
+      "username": "service-account-svc-batch",
+      "enabled": true,
+      "serviceAccountClientId": "svc-batch",
+      "realmRoles": [
+        "default-roles-k8sgateway",
+        "admin",
+        "user"
+      ]
+    }
+  ],
+  "clientScopes": [
+    {
+      "name": "k8sgateway-api",
+      "description": "Adds aud=k8sgateway-api to access tokens so the REST and GraphQL APIs accept them",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "k8sgateway-api audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "k8sgateway-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "defaultDefaultClientScopes": [
+    "k8sgateway-api"
+  ],
+  "clients": [
+    {
+      "clientId": "angular-app",
+      "name": "Angular SPA (public client, PKCE S256)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "rootUrl": "http://angular.127.0.0.1.nip.io",
+      "baseUrl": "/",
+      "redirectUris": [
+        "http://angular.127.0.0.1.nip.io/*",
+        "https://angular.127.0.0.1.nip.io/*",
+        "http://localhost:4200/*"
+      ],
+      "webOrigins": [
+        "+"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://angular.127.0.0.1.nip.io/*##https://angular.127.0.0.1.nip.io/*##http://localhost:4200/*"
+      }
+    },
+    {
+      "clientId": "nextjs-app",
+      "name": "Next.js BFF (confidential client)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "nextjs-secret",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "rootUrl": "http://next.127.0.0.1.nip.io",
+      "baseUrl": "/",
+      "redirectUris": [
+        "http://next.127.0.0.1.nip.io/api/auth/callback",
+        "https://next.127.0.0.1.nip.io/api/auth/callback",
+        "http://localhost:3000/api/auth/callback"
+      ],
+      "webOrigins": [
+        "+"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://next.127.0.0.1.nip.io/*##https://next.127.0.0.1.nip.io/*##http://localhost:3000/*"
+      }
+    },
+    {
+      "clientId": "cli",
+      "name": "Scripts and tests (password grant only - never do this in production)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "redirectUris": []
+    },
+    {
+      "clientId": "svc-batch",
+      "name": "Batch job (client_credentials, service account has the admin role)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "svc-batch-secret",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "redirectUris": []
+    }
+  ]
+}

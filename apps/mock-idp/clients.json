@@ -1,0 +1,45 @@
+[
+  {
+    "client_id": "angular-app",
+    "name": "Angular SPA (public client, PKCE)",
+    "grant_types": ["authorization_code", "refresh_token"],
+    "redirect_uris": [
+      "http://angular.127.0.0.1.nip.io/*",
+      "https://angular.127.0.0.1.nip.io/*",
+      "http://localhost:4200/*"
+    ],
+    "post_logout_redirect_uris": [
+      "http://angular.127.0.0.1.nip.io/*",
+      "https://angular.127.0.0.1.nip.io/*",
+      "http://localhost:4200/*"
+    ]
+  },
+  {
+    "client_id": "nextjs-app",
+    "name": "Next.js BFF (confidential client)",
+    "client_secret": "nextjs-secret",
+    "grant_types": ["authorization_code", "refresh_token"],
+    "redirect_uris": [
+      "http://next.127.0.0.1.nip.io/api/auth/callback",
+      "https://next.127.0.0.1.nip.io/api/auth/callback",
+      "http://localhost:3000/api/auth/callback"
+    ],
+    "post_logout_redirect_uris": [
+      "http://next.127.0.0.1.nip.io/*",
+      "https://next.127.0.0.1.nip.io/*",
+      "http://localhost:3000/*"
+    ]
+  },
+  {
+    "client_id": "cli",
+    "name": "Scripts and tests (password grant)",
+    "grant_types": ["password", "refresh_token"]
+  },
+  {
+    "client_id": "svc-batch",
+    "name": "Batch service (client_credentials)",
+    "client_secret": "svc-batch-secret",
+    "grant_types": ["client_credentials"],
+    "roles": ["admin"]
+  }
+]

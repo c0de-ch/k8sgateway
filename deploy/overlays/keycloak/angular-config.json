@@ -1,0 +1,14 @@
+{
+  "idpName": "Keycloak",
+  "issuer": "http://keycloak.127.0.0.1.nip.io/realms/k8sgateway",
+  "clientId": "angular-app",
+  "scope": "openid profile email",
+  "requireHttps": false,
+  "strictDiscoveryDocumentValidation": true,
+  "skipIssuerCheck": false,
+  "apiUrl": "http://api.127.0.0.1.nip.io",
+  "graphqlUrl": "http://graphql.127.0.0.1.nip.io/graphql",
+  "rolesClaim": "realm_access.roles",
+  "roleUser": "user",
+  "roleAdmin": "admin"
+}

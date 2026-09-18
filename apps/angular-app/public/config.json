@@ -1,0 +1,13 @@
+{
+  "idpName": "Mock IdP",
+  "issuer": "http://idp.127.0.0.1.nip.io",
+  "clientId": "angular-app",
+  "scope": "openid profile email",
+  "requireHttps": false,
+  "strictDiscoveryDocumentValidation": true,
+  "apiUrl": "http://api.127.0.0.1.nip.io",
+  "graphqlUrl": "http://graphql.127.0.0.1.nip.io/graphql",
+  "rolesClaim": "roles",
+  "roleUser": "user",
+  "roleAdmin": "admin"
+}

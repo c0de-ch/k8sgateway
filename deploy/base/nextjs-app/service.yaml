@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: nextjs-app
+  namespace: k8sgateway
+  labels:
+    app.kubernetes.io/name: nextjs-app
+    app.kubernetes.io/part-of: k8sgateway
+spec:
+  selector:
+    app.kubernetes.io/name: nextjs-app
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http

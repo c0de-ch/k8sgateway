@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: graphql-api
+  namespace: k8sgateway
+  labels:
+    app.kubernetes.io/name: graphql-api
+    app.kubernetes.io/part-of: k8sgateway
+spec:
+  selector:
+    app.kubernetes.io/name: graphql-api
+  ports:
+    - name: http
+      port: 4000
+      targetPort: http

@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  namespace: idp
+  labels:
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/part-of: k8sgateway
+spec:
+  replicas: 1 # dev-file (H2) database: never scale above 1
+  strategy:
+    type: Recreate # two pods must not share the same H2 file during a rollout
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: keycloak
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: keycloak
+        app.kubernetes.io/part-of: k8sgateway
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000 # "keycloak" user of the official image
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:26.7.4
+          imagePullPolicy: IfNotPresent
+          args: ["start-dev", "--import-realm"]
+          env:
+            # Temporary bootstrap admin for the master realm (admin console at
+            # http://keycloak.127.0.0.1.nip.io/admin/). Demo value.
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              value: admin
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              value: admin
+            # Hostname v2 with a FULL URL pins the issuer and every advertised
+            # endpoint to http://keycloak.127.0.0.1.nip.io/realms/k8sgateway,
+            # no matter whether a browser or a pod asks. (KC_HOSTNAME_STRICT is
+            # ignored once KC_HOSTNAME is set, so it is not needed here.)
+            - name: KC_HOSTNAME
+              value: http://keycloak.127.0.0.1.nip.io
+            # Envoy Gateway terminates the client connection and forwards plain
+            # HTTP with X-Forwarded-* headers.
+            - name: KC_HTTP_ENABLED
+              value: "true"
+            - name: KC_PROXY_HEADERS
+              value: xforwarded
+            # Health endpoints are served on the management port 9000.
+            - name: KC_HEALTH_ENABLED
+              value: "true"
+            # DEV ONLY: GET /realms/k8sgateway/hostname-debug shows the resolved
+            # URLs. It is public through the gateway - never enable it in production.
+            - name: KC_HOSTNAME_DEBUG
+              value: "true"
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: management
+              containerPort: 9000
+          volumeMounts:
+            - name: realm
+              mountPath: /opt/keycloak/data/import
+              readOnly: true
+          # First start builds Quarkus and imports the realm: allow a few minutes.
+          startupProbe:
+            httpGet:
+              path: /health/started
+              port: management
+            periodSeconds: 2
+            failureThreshold: 150
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: management
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: management
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              memory: 1536Mi # JVM heap = 70% of this limit
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: realm
+          configMap:
+            name: keycloak-realm

@@ -1,0 +1,19 @@
+# Namespaces used by the tutorial. k8sgateway is also declared in
+# deploy/gateway/gateway.yaml (the Gateway lives there); declaring it twice is
+# harmless because kubectl apply is idempotent and both copies are identical.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: k8sgateway
+  labels:
+    app.kubernetes.io/name: k8sgateway
+    app.kubernetes.io/part-of: k8sgateway
+---
+# Identity providers that run inside the cluster (mock IdP, Keycloak).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: idp
+  labels:
+    app.kubernetes.io/name: idp
+    app.kubernetes.io/part-of: k8sgateway

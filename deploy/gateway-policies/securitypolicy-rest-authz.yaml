@@ -1,0 +1,87 @@
+# JWT authentication PLUS claim-based authorization at the gateway (mock IdP):
+# only tokens whose roles claim contains "admin" may reach /api/admin/*.
+#
+# How it works (Envoy Gateway v1.9):
+# - Filter order inside Envoy is cors -> jwt_authn -> rbac. A CORS preflight
+#   from an allowed origin is answered by the cors filter and never reaches
+#   the JWT or authorization step; that is why no OPTIONS rule is needed.
+# - jwt.optional: false => a request without a token is rejected with 401 by
+#   the JWT filter before any authorization rule runs; an invalid token is 401
+#   as well.
+# - Authorization rules are evaluated in order, the first match wins, and a
+#   request that matches no rule gets defaultAction (Deny => 403).
+# - principal.jwt.claims with valueType StringArray matches when ANY of the
+#   listed values is present in the array claim. `name` is a dotted path, so
+#   the Keycloak variant would be `realm_access.roles`.
+# - Everything outside /api/admin only needs the valid token the JWT filter
+#   already enforced; the API decides about user/admin for the other routes.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: rest-api-jwt
+  namespace: k8sgateway
+  labels:
+    app.kubernetes.io/name: rest-api
+    app.kubernetes.io/part-of: k8sgateway
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: rest-api
+  jwt:
+    optional: false
+    providers:
+      - name: idp
+        issuer: http://idp.127.0.0.1.nip.io
+        audiences: ["k8sgateway-api"]
+        remoteJWKS:
+          uri: http://mock-idp.idp.svc.cluster.local:8080/jwks
+          cacheDuration: 300s
+  authorization:
+    defaultAction: Deny
+    rules:
+      - name: admin-area-needs-admin-role
+        action: Allow
+        operation:
+          path:
+            type: PathPrefix
+            value: /api/admin
+        principal:
+          jwt:
+            provider: idp
+            claims:
+              - name: roles # Keycloak: realm_access.roles
+                valueType: StringArray
+                values: ["admin"]
+      # A token without the admin role did not match above; stop it here so it
+      # cannot fall through to the catch-all rule. (Every rule needs a
+      # principal; "iss equals our issuer" is true for every accepted token, so
+      # it means "any authenticated request".)
+      - name: admin-area-otherwise-forbidden
+        action: Deny
+        operation:
+          path:
+            type: PathPrefix
+            value: /api/admin
+        principal:
+          jwt:
+            provider: idp
+            claims:
+              - name: iss
+                values: ["http://idp.127.0.0.1.nip.io"]
+      - name: any-authenticated-request
+        action: Allow
+        principal:
+          jwt:
+            provider: idp
+            claims:
+              - name: iss
+                values: ["http://idp.127.0.0.1.nip.io"]
+  cors:
+    allowOrigins:
+      - "http://*.127.0.0.1.nip.io"
+      - "http://localhost:4200"
+    allowMethods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
+    allowHeaders: [Authorization, Content-Type]
+    exposeHeaders: [WWW-Authenticate]
+    maxAge: 86400s

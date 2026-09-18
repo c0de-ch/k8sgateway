@@ -1,0 +1,19 @@
+# Keycloak 26 in dev mode with the "k8sgateway" realm imported at startup.
+# Single replica on the embedded H2 database: every restart re-imports the
+# realm from realm-export.json (deterministic, but admin-console edits are lost).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - deployment.yaml
+  - service.yaml
+  - httproute.yaml
+configMapGenerator:
+  - name: keycloak-realm
+    namespace: idp
+    files:
+      # --import-realm only reads <realm>-realm.json, so the key sets the file name.
+      - k8sgateway-realm.json=realm-export.json
+    options:
+      labels:
+        app.kubernetes.io/name: keycloak
+        app.kubernetes.io/part-of: k8sgateway

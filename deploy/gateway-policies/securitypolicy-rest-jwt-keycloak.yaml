@@ -1,0 +1,40 @@
+# Same policy as securitypolicy-rest-jwt.yaml, for the Keycloak overlay:
+# issuer = realm URL, JWKS = the realm's certs endpoint via the in-cluster
+# Service. Keycloak advertises the public hostname in its discovery document,
+# but Envoy can fetch the keys from the Service directly - the key material is
+# the same.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: rest-api-jwt
+  namespace: k8sgateway
+  labels:
+    app.kubernetes.io/name: rest-api
+    app.kubernetes.io/part-of: k8sgateway
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: rest-api
+  jwt:
+    optional: false
+    providers:
+      - name: keycloak
+        issuer: http://keycloak.127.0.0.1.nip.io/realms/k8sgateway
+        audiences: ["k8sgateway-api"]
+        remoteJWKS:
+          uri: http://keycloak.idp.svc.cluster.local:8080/realms/k8sgateway/protocol/openid-connect/certs
+          cacheDuration: 300s
+        claimToHeaders:
+          - header: x-jwt-sub
+            claim: sub
+          - header: x-jwt-preferred-username
+            claim: preferred_username
+  cors:
+    allowOrigins:
+      - "http://*.127.0.0.1.nip.io"
+      - "http://localhost:4200"
+    allowMethods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
+    allowHeaders: [Authorization, Content-Type]
+    exposeHeaders: [WWW-Authenticate]
+    maxAge: 86400s

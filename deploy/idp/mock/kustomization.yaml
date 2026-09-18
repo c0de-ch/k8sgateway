@@ -1,0 +1,26 @@
+# Mock OIDC provider for development (apps/mock-idp). Same users, clients and
+# roles as the Keycloak realm, but boots in a second and can imitate the token
+# shapes of Keycloak, Entra ID and Oracle IAM (MOCK_FLAVOR).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - deployment.yaml
+  - service.yaml
+  - httproute.yaml
+configMapGenerator:
+  - name: mock-idp-config
+    namespace: idp
+    envs:
+      - mock-idp.env
+    options:
+      labels:
+        app.kubernetes.io/name: mock-idp
+        app.kubernetes.io/part-of: k8sgateway
+  - name: mock-idp-users
+    namespace: idp
+    files:
+      - users.json
+    options:
+      labels:
+        app.kubernetes.io/name: mock-idp
+        app.kubernetes.io/part-of: k8sgateway

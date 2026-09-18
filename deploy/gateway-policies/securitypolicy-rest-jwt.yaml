@@ -1,0 +1,56 @@
+# Defense in depth: let the gateway reject requests to the REST API that do not
+# carry a valid JWT BEFORE they reach the pod. The API still validates the token
+# itself (never trust the network alone).
+#
+# Facts that matter (Envoy Gateway v1.9):
+# - A SecurityPolicy must live in the SAME namespace as the HTTPRoute it targets.
+# - `issuer` is compared verbatim with the token's iss claim.
+# - `audiences` must contain one of the token's aud values.
+# - remoteJWKS.uri may be plain http:// and should use the in-cluster Service
+#   name; the JWKS is cached (cacheDuration) and refetched on unknown key ids.
+# - optional: false (default) => a request WITHOUT a token gets 401 here.
+#   That also blocks unauthenticated GET /api/public and the CORS preflight
+#   (browsers send OPTIONS without Authorization), hence the cors section:
+#   Envoy answers the preflight itself, before the JWT filter runs.
+#
+# Apply one variant at a time; all variants share the name rest-api-jwt so a
+# second `kubectl apply` replaces the first:
+#   kubectl apply -f deploy/gateway-policies/securitypolicy-rest-jwt.yaml
+#   kubectl delete -f deploy/gateway-policies/securitypolicy-rest-jwt.yaml
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: rest-api-jwt
+  namespace: k8sgateway
+  labels:
+    app.kubernetes.io/name: rest-api
+    app.kubernetes.io/part-of: k8sgateway
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: rest-api
+  jwt:
+    optional: false
+    providers:
+      - name: idp
+        issuer: http://idp.127.0.0.1.nip.io
+        audiences: ["k8sgateway-api"]
+        remoteJWKS:
+          uri: http://mock-idp.idp.svc.cluster.local:8080/jwks
+          cacheDuration: 300s
+        # Scalar claims can be copied into headers for the backend. Array
+        # claims such as roles cannot - the API decodes the token anyway.
+        claimToHeaders:
+          - header: x-jwt-sub
+            claim: sub
+          - header: x-jwt-preferred-username
+            claim: preferred_username
+  cors:
+    allowOrigins:
+      - "http://*.127.0.0.1.nip.io"
+      - "http://localhost:4200"
+    allowMethods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
+    allowHeaders: [Authorization, Content-Type]
+    exposeHeaders: [WWW-Authenticate]
+    maxAge: 86400s

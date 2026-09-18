@@ -1,0 +1,14 @@
+{
+  "idpName": "Microsoft Entra ID",
+  "issuer": "https://login.microsoftonline.com/<TENANT_ID>/v2.0",
+  "clientId": "<ANGULAR_CLIENT_ID>",
+  "scope": "openid profile email offline_access api://<API_CLIENT_ID>/access_as_user",
+  "requireHttps": true,
+  "strictDiscoveryDocumentValidation": false,
+  "skipIssuerCheck": false,
+  "apiUrl": "http://api.127.0.0.1.nip.io",
+  "graphqlUrl": "http://graphql.127.0.0.1.nip.io/graphql",
+  "rolesClaim": "roles",
+  "roleUser": "user",
+  "roleAdmin": "admin"
+}

@@ -1,0 +1,47 @@
+# Overlay: Microsoft Entra ID (cloud; replace the placeholders, see README.md)
+# Renders base + (optional in-cluster IdP) + one ConfigMap per application with
+# the OIDC settings for this IdP. Render with scripts/render.sh entra.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+generatorOptions:
+  labels:
+    app.kubernetes.io/part-of: k8sgateway
+configMapGenerator:
+  - name: angular-config
+    namespace: k8sgateway
+    files:
+      - config.json=angular-config.json
+    options:
+      labels:
+        app.kubernetes.io/name: angular-app
+  - name: nextjs-config
+    namespace: k8sgateway
+    envs:
+      - nextjs.env
+    options:
+      labels:
+        app.kubernetes.io/name: nextjs-app
+  - name: rest-api-config
+    namespace: k8sgateway
+    envs:
+      - rest-api.env
+    options:
+      labels:
+        app.kubernetes.io/name: rest-api
+  - name: graphql-api-config
+    namespace: k8sgateway
+    envs:
+      - graphql-api.env
+    options:
+      labels:
+        app.kubernetes.io/name: graphql-api
+secretGenerator:
+  - name: nextjs-secrets
+    namespace: k8sgateway
+    envs:
+      - nextjs.secret.env
+    options:
+      labels:
+        app.kubernetes.io/name: nextjs-app

@@ -1,0 +1,44 @@
+# Customises the Envoy proxy fleet that Envoy Gateway creates for our Gateway.
+# In kind there is no cloud load balancer, so the proxy Service is a NodePort
+# bound to a fixed port that deploy/kind/kind-config.yaml maps to host port 80.
+# (deploy/tls adds the 443 listener and its NodePort 30443.)
+#
+# The patch is a strategic merge on the generated Service: entries merge by
+# `port`, so {port: 80, nodePort: 30080} only pins the nodePort of the entry
+# Envoy Gateway generates itself (name http-80, targetPort 10080 - Envoy
+# listens on listener port + 10000 for privileged ports).
+#
+# The extra port 8080 is an in-cluster alias of the same listener for hosts
+# that cannot bind port 80 (rootless Docker: HTTP_PORT=8080 scripts/up.sh).
+# Browsers then use http://idp.127.0.0.1.nip.io:8080 and the pods, which
+# resolve that name to this Service (CoreDNS rewrite), must reach the listener
+# on port 8080 as well. Envoy ignores the port in the Host header when routing.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: k8sgateway-proxy
+  namespace: envoy-gateway-system
+  labels:
+    app.kubernetes.io/name: envoy-proxy
+    app.kubernetes.io/part-of: k8sgateway
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyDeployment:
+        replicas: 1
+      envoyService:
+        type: NodePort
+        patch:
+          type: StrategicMerge
+          value:
+            spec:
+              ports:
+                - name: http-80
+                  port: 80
+                  protocol: TCP
+                  nodePort: 30080
+                - name: http-alt # port 8080 -> the same http listener (see above)
+                  port: 8080
+                  targetPort: 10080
+                  protocol: TCP

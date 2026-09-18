@@ -1,0 +1,22 @@
+{
+  "_notes": [
+    "Microsoft Entra ID, single tenant. Always use the tenant-specific v2.0 issuer (never /common or /organizations).",
+    "Register the redirect URI under the 'Single-page application' platform; Entra accepts http:// only for localhost,",
+    "so use TLS mode (https://angular.127.0.0.1.nip.io/callback) or 'npm start' on http://localhost:4200/callback.",
+    "The API scope api://<API_CLIENT_ID>/access_as_user makes the access token's aud = <API_CLIENT_ID>;",
+    "without it Entra issues a Microsoft Graph token that the APIs cannot validate.",
+    "Entra's discovery endpoints do not start with the issuer URL -> strictDiscoveryDocumentValidation must be false.",
+    "App roles assigned on the API registration appear in the access token as 'roles'."
+  ],
+  "idpName": "Microsoft Entra ID",
+  "issuer": "https://login.microsoftonline.com/<TENANT_ID>/v2.0",
+  "clientId": "<SPA_CLIENT_ID>",
+  "scope": "openid profile email offline_access api://<API_CLIENT_ID>/access_as_user",
+  "requireHttps": true,
+  "strictDiscoveryDocumentValidation": false,
+  "apiUrl": "https://api.127.0.0.1.nip.io",
+  "graphqlUrl": "https://graphql.127.0.0.1.nip.io/graphql",
+  "rolesClaim": "roles",
+  "roleUser": "user",
+  "roleAdmin": "admin"
+}

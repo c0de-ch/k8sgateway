@@ -1,0 +1,35 @@
+[
+  {
+    "username": "alice",
+    "password": "alice",
+    "sub": "8f1d2c5e-0a4b-4a9e-9b1a-1e2f3a4b5c01",
+    "name": "Alice Admin",
+    "given_name": "Alice",
+    "family_name": "Admin",
+    "email": "alice@example.com",
+    "email_verified": true,
+    "roles": ["admin", "user"]
+  },
+  {
+    "username": "bob",
+    "password": "bob",
+    "sub": "8f1d2c5e-0a4b-4a9e-9b1a-1e2f3a4b5c02",
+    "name": "Bob User",
+    "given_name": "Bob",
+    "family_name": "User",
+    "email": "bob@example.com",
+    "email_verified": true,
+    "roles": ["user"]
+  },
+  {
+    "username": "carol",
+    "password": "carol",
+    "sub": "8f1d2c5e-0a4b-4a9e-9b1a-1e2f3a4b5c03",
+    "name": "Carol Guest",
+    "given_name": "Carol",
+    "family_name": "Guest",
+    "email": "carol@example.com",
+    "email_verified": true,
+    "roles": []
+  }
+]

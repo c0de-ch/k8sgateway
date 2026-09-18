@@ -1,0 +1,21 @@
+{
+  "_notes": [
+    "Keycloak 26 realm 'k8sgateway' running in the kind cluster (deploy/idp/keycloak).",
+    "The SPA client 'angular-app' is public (Client authentication OFF), Standard flow ON, PKCE S256.",
+    "Valid redirect URIs: http://angular.127.0.0.1.nip.io/*  Web origins: http://angular.127.0.0.1.nip.io",
+    "Realm roles land in the ACCESS token under realm_access.roles (not in the ID token by default).",
+    "Do NOT add offline_access: Keycloak issues a normal refresh token for the code flow anyway, and offline_access",
+    "would turn it into an OFFLINE token (never expires, survives logout, needs the offline_access role)."
+  ],
+  "idpName": "Keycloak",
+  "issuer": "http://keycloak.127.0.0.1.nip.io/realms/k8sgateway",
+  "clientId": "angular-app",
+  "scope": "openid profile email",
+  "requireHttps": false,
+  "strictDiscoveryDocumentValidation": true,
+  "apiUrl": "http://api.127.0.0.1.nip.io",
+  "graphqlUrl": "http://graphql.127.0.0.1.nip.io/graphql",
+  "rolesClaim": "realm_access.roles",
+  "roleUser": "user",
+  "roleAdmin": "admin"
+}

@@ -1,0 +1,160 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="1000" viewBox="0 0 1400 1000" role="img" aria-labelledby="title desc" font-family="Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif">
+  <title id="title">Architecture: kind cluster with Envoy Gateway, apps and identity providers</title>
+  <desc id="desc">Browser talks through Envoy Gateway to Angular, Next.js, REST and GraphQL apps in namespace k8sgateway and to the mock IdP or Keycloak in namespace idp; cloud IdPs Entra ID and Oracle IAM sit outside the cluster; APIs fetch JWKS from the IdP.</desc>
+  <defs>
+    <marker id="arr-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M1,1 L9,5 L1,9 Z" fill="#2563eb"/></marker>
+    <marker id="arr-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M1,1 L9,5 L1,9 Z" fill="#16a34a"/></marker>
+    <marker id="arr-amber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M1,1 L9,5 L1,9 Z" fill="#d97706"/></marker>
+    <marker id="arr-grey" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M1,1 L9,5 L1,9 Z" fill="#6b7280"/></marker>
+    <marker id="arr-slate" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M1,1 L9,5 L1,9 Z" fill="#1f2937"/></marker>
+  </defs>
+  <!-- light canvas so the diagram stays legible on GitHub dark mode -->
+  <rect x="0.5" y="0.5" width="1399" height="999" rx="16" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="40" y="50" font-size="24" fill="#1f2937" font-weight="700">Architecture — JWT-protected web apps on a local kind cluster</text>
+  <text x="40" y="78" font-size="15" fill="#6b7280">One Envoy Gateway in front of everything; the IdP authenticates users and issues tokens, the apps only obtain and validate them.</text>
+
+  <!-- kind cluster -->
+  <rect x="300" y="140" width="800" height="760" rx="18" fill="#ffffff" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="8 6"/>
+  <text x="320" y="168" font-size="15" fill="#6b7280" font-weight="700">kind cluster “k8sgateway” · Kubernetes 1.37</text>
+  <text x="320" y="188" font-size="12.5" fill="#6b7280">host port 80 → NodePort 30080 (deploy/kind/kind-config.yaml)</text>
+
+  <!-- browser (outside the cluster) -->
+  <rect x="40" y="320" width="220" height="190" rx="12" fill="#ffffff" stroke="#2563eb" stroke-width="1.6"/>
+  <text x="56" y="348.0" font-size="16" fill="#1f2937" font-weight="700">Browser</text>
+  <text x="56" y="370.0" font-size="13" fill="#1f2937">Angular SPA (public client)</text>
+  <text x="56" y="388.0" font-size="13" fill="#1f2937">Next.js pages (BFF cookie)</text>
+  <text x="56" y="406.0" font-size="13" fill="#6b7280">curl / make token (scripts)</text>
+  <text x="56" y="424.0" font-size="12" fill="#2563eb" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">→ &lt;app&gt;.127.0.0.1.nip.io</text>
+  <rect x="48" y="462" width="204" height="34" rx="8" fill="#fffbeb" stroke="#d97706" stroke-width="1.2"/>
+  <text x="150.0" y="483.14" font-size="12" fill="#d97706" font-weight="600" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">Authorization: Bearer &lt;JWT&gt;</text>
+  <line x1="260" y1="410" x2="330" y2="410" stroke="#2563eb" stroke-width="2.2" marker-end="url(#arr-blue)"/>
+  <text x="295.0" y="396" font-size="12" fill="#6b7280" paint-order="stroke" stroke="#f8fafc" stroke-width="5" stroke-linejoin="round" text-anchor="middle">HTTP :80</text>
+
+  <!-- Envoy Gateway -->
+  <text x="330" y="310" font-size="12" fill="#6b7280">namespace k8sgateway</text>
+  <rect x="330" y="320" width="230" height="190" rx="12" fill="#eff6ff" stroke="#2563eb" stroke-width="1.6"/>
+  <text x="346" y="348.0" font-size="16" fill="#2563eb" font-weight="700">Envoy Gateway 1.9.1</text>
+  <text x="346" y="371.0" font-size="13" fill="#1f2937">Gateway “main” (Gateway API)</text>
+  <text x="346" y="390.0" font-size="13" fill="#1f2937">listener http :80</text>
+  <text x="346" y="409.0" font-size="13" fill="#1f2937">Service type NodePort 30080</text>
+  <text x="346" y="428.0" font-size="13" fill="#1f2937">routes on the Host header</text>
+  <text x="346" y="447.0" font-size="13" fill="#6b7280">one HTTPRoute per app</text>
+  <text x="346" y="470.0" font-size="12" fill="#6b7280">proxy pods + Service live in</text>
+  <text x="346" y="488.0" font-size="12" fill="#6b7280">ns envoy-gateway-system</text>
+
+  <!-- namespace k8sgateway: the four applications -->
+  <rect x="620" y="190" width="460" height="340" rx="14" fill="#f3f4f6" stroke="#6b7280" stroke-width="1.2" stroke-dasharray="4 4"/>
+  <text x="640" y="214" font-size="13.5" fill="#6b7280" font-weight="700">namespace k8sgateway</text>
+  <rect x="640" y="230" width="420" height="66" rx="10" fill="#ffffff" stroke="#2563eb" stroke-width="1.4"/>
+  <text x="656" y="256" font-size="15" fill="#1f2937" font-weight="700">angular-app</text>
+  <text x="656" y="278" font-size="12.5" fill="#6b7280">Angular 22 SPA · nginx :8080</text>
+  <text x="1046" y="256" font-size="12" fill="#2563eb" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">http://angular.127.0.0.1.nip.io</text>
+  <text x="1046" y="278" font-size="12" fill="#d97706" text-anchor="end">tokens in the browser (PKCE)</text>
+  <rect x="640" y="304" width="420" height="66" rx="10" fill="#ffffff" stroke="#2563eb" stroke-width="1.4"/>
+  <text x="656" y="330" font-size="15" fill="#1f2937" font-weight="700">nextjs-app</text>
+  <text x="656" y="352" font-size="12.5" fill="#6b7280">Next.js 16 BFF · node :3000</text>
+  <text x="1046" y="330" font-size="12" fill="#2563eb" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">http://next.127.0.0.1.nip.io</text>
+  <text x="1046" y="352" font-size="12" fill="#d97706" text-anchor="end">tokens in a server session</text>
+  <rect x="640" y="378" width="420" height="66" rx="10" fill="#ffffff" stroke="#2563eb" stroke-width="1.4"/>
+  <text x="656" y="404" font-size="15" fill="#1f2937" font-weight="700">rest-api</text>
+  <text x="656" y="426" font-size="12.5" fill="#6b7280">Go 1.27 · chi :8080</text>
+  <text x="1046" y="404" font-size="12" fill="#2563eb" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">http://api.127.0.0.1.nip.io</text>
+  <text x="1046" y="426" font-size="12" fill="#d97706" text-anchor="end">validates JWT · roles</text>
+  <rect x="640" y="452" width="420" height="66" rx="10" fill="#ffffff" stroke="#2563eb" stroke-width="1.4"/>
+  <text x="656" y="478" font-size="15" fill="#1f2937" font-weight="700">graphql-api</text>
+  <text x="656" y="500" font-size="12.5" fill="#6b7280">Node 22 · Apollo Server 5 :4000</text>
+  <text x="1046" y="478" font-size="12" fill="#2563eb" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">http://graphql.127.0.0.1.nip.io/graphql</text>
+  <text x="1046" y="500" font-size="12" fill="#d97706" text-anchor="end">validates JWT · token relay</text>
+
+  <!-- namespace idp: in-cluster identity providers -->
+  <rect x="620" y="640" width="460" height="200" rx="14" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.2" stroke-dasharray="4 4"/>
+  <text x="640" y="664" font-size="13.5" fill="#16a34a" font-weight="700">namespace idp</text>
+  <rect x="640" y="680" width="420" height="66" rx="10" fill="#ffffff" stroke="#16a34a" stroke-width="1.4"/>
+  <text x="656" y="706" font-size="15" fill="#1f2937" font-weight="700">mock-idp</text>
+  <text x="656" y="728" font-size="12.5" fill="#6b7280">Node 22 · express :8080</text>
+  <text x="1046" y="706" font-size="12" fill="#16a34a" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">http://idp.127.0.0.1.nip.io</text>
+  <text x="1046" y="728" font-size="12" fill="#6b7280" text-anchor="end">fake IdP for dev · 4 flavors</text>
+  <rect x="640" y="754" width="420" height="66" rx="10" fill="#ffffff" stroke="#16a34a" stroke-width="1.4"/>
+  <text x="656" y="780" font-size="15" fill="#1f2937" font-weight="700">keycloak</text>
+  <text x="656" y="802" font-size="12.5" fill="#6b7280">Keycloak 26.7 · :8080</text>
+  <text x="1046" y="780" font-size="12" fill="#16a34a" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">http://keycloak.127.0.0.1.nip.io</text>
+  <text x="1046" y="802" font-size="12" fill="#6b7280" text-anchor="end">realm k8sgateway · demo users</text>
+
+  <!-- HTTPRoutes: the gateway routes every hostname to its Service -->
+  <line x1="560" y1="415.0" x2="590" y2="415.0" stroke="#2563eb" stroke-width="2"/>
+  <line x1="590" y1="263.0" x2="590" y2="787.0" stroke="#2563eb" stroke-width="2"/>
+  <line x1="590" y1="263.0" x2="640" y2="263.0" stroke="#2563eb" stroke-width="1.6" marker-end="url(#arr-blue)"/>
+  <line x1="590" y1="337.0" x2="640" y2="337.0" stroke="#2563eb" stroke-width="1.6" marker-end="url(#arr-blue)"/>
+  <line x1="590" y1="411.0" x2="640" y2="411.0" stroke="#2563eb" stroke-width="1.6" marker-end="url(#arr-blue)"/>
+  <line x1="590" y1="485.0" x2="640" y2="485.0" stroke="#2563eb" stroke-width="1.6" marker-end="url(#arr-blue)"/>
+  <line x1="590" y1="713.0" x2="640" y2="713.0" stroke="#16a34a" stroke-width="1.6" marker-end="url(#arr-green)"/>
+  <line x1="590" y1="787.0" x2="640" y2="787.0" stroke="#16a34a" stroke-width="1.6" marker-end="url(#arr-green)"/>
+  <text x="578" y="300" font-size="12.5" fill="#6b7280" font-weight="700" text-anchor="middle" transform="rotate(-90 578 300)">HTTPRoutes · Host match</text>
+
+  <!-- numbered flows -->
+  <g><circle cx="640" cy="703.0" r="12" fill="#d97706"/><text x="640" y="707.5" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">1</text></g>
+  <g><circle cx="640" cy="401.0" r="12" fill="#d97706"/><text x="640" y="405.5" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">2</text></g>
+  <g><circle cx="640" cy="475.0" r="12" fill="#d97706"/><text x="640" y="479.5" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">2</text></g>
+  <line x1="910.0" y1="530" x2="910.0" y2="640" stroke="#16a34a" stroke-width="1.8" stroke-dasharray="6 4" marker-end="url(#arr-green)"/>
+  <g><circle cx="910.0" cy="585" r="12" fill="#16a34a"/><text x="910.0" y="589.5" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">3</text></g>
+  <text x="932.0" y="576" font-size="13" fill="#16a34a" font-weight="700">GET jwks_uri</text>
+  <text x="932.0" y="594" font-size="12" fill="#6b7280">from discovery · cached</text>
+  <text x="890.0" y="576" font-size="12" fill="#6b7280" text-anchor="end">REST + GraphQL</text>
+  <text x="890.0" y="594" font-size="12" fill="#6b7280" text-anchor="end">→ IdP</text>
+
+  <!-- CoreDNS rewrite note -->
+  <rect x="330" y="640" width="230" height="200" rx="12" fill="#f3f4f6" stroke="#6b7280" stroke-width="1.6"/>
+  <text x="346" y="667.25" font-size="15" fill="#6b7280" font-weight="700">CoreDNS rewrite</text>
+  <text x="346" y="689.25" font-size="12" fill="#2563eb" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">*.127.0.0.1.nip.io →</text>
+  <text x="346" y="707.25" font-size="12" fill="#2563eb" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">Envoy proxy Service</text>
+  <text x="346" y="725.25" font-size="12.5" fill="#1f2937">Pods resolve the IdP and API</text>
+  <text x="346" y="743.25" font-size="12.5" fill="#1f2937">hostnames to the gateway, so</text>
+  <text x="346" y="761.25" font-size="12.5" fill="#1f2937">the same issuer URL works in</text>
+  <text x="346" y="779.25" font-size="12.5" fill="#1f2937">browsers and pods (iss check).</text>
+
+  <!-- cloud IdPs outside the cluster -->
+  <rect x="1120" y="140" width="250" height="760" rx="18" fill="#ffffff" stroke="#6b7280" stroke-width="1.5" stroke-dasharray="8 6"/>
+  <text x="1140" y="168" font-size="13.5" fill="#6b7280" font-weight="700">outside the cluster</text>
+  <text x="1140" y="188" font-size="12.5" fill="#6b7280">optional cloud IdPs</text>
+  <g><circle cx="1344" cy="166" r="12" fill="#16a34a"/><text x="1344" y="170.5" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">4</text></g>
+  <rect x="1136" y="230" width="218" height="150" rx="12" fill="#ffffff" stroke="#16a34a" stroke-width="1.6" stroke-dasharray="5 4"/>
+  <text x="1152" y="258.0" font-size="16" fill="#1f2937" font-weight="700">Microsoft</text>
+  <text x="1152" y="281.0" font-size="16" fill="#1f2937" font-weight="700">Entra ID</text>
+  <text x="1152" y="300.0" font-size="12" fill="#16a34a" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">login.microsoftonline.com/</text>
+  <text x="1152" y="319.0" font-size="12" fill="#16a34a" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">&lt;TENANT_ID&gt;/v2.0</text>
+  <text x="1152" y="338.0" font-size="12" fill="#6b7280">roles claim: roles</text>
+  <rect x="1136" y="410" width="218" height="190" rx="12" fill="#ffffff" stroke="#16a34a" stroke-width="1.6" stroke-dasharray="5 4"/>
+  <text x="1152" y="438.0" font-size="16" fill="#1f2937" font-weight="700">Oracle IAM</text>
+  <text x="1152" y="461.0" font-size="16" fill="#1f2937" font-weight="700">Identity Domains</text>
+  <text x="1152" y="480.0" font-size="12" fill="#16a34a" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">idcs-&lt;guid&gt;.identity.</text>
+  <text x="1152" y="499.0" font-size="12" fill="#16a34a" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">oraclecloud.com</text>
+  <text x="1152" y="518.0" font-size="12" fill="#6b7280">iss claim:</text>
+  <text x="1152" y="537.0" font-size="12" fill="#16a34a" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">identity.oraclecloud.com/</text>
+  <text x="1152" y="556.0" font-size="12" fill="#6b7280">roles claim: groups*</text>
+  <text x="1138" y="650" font-size="12.5" fill="#6b7280">Cloud IdPs replace the</text>
+  <text x="1138" y="669" font-size="12.5" fill="#6b7280">in-cluster IdP through</text>
+  <text x="1138" y="688" font-size="12.5" fill="#6b7280">configuration only:</text>
+  <text x="1138" y="707" font-size="12.5" fill="#2563eb" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">OIDC_ISSUER</text>
+  <text x="1138" y="726" font-size="12.5" fill="#2563eb" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">OIDC_AUDIENCE</text>
+  <text x="1138" y="745" font-size="12.5" fill="#2563eb" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">ROLES_CLAIM</text>
+  <text x="1138" y="764" font-size="12.5" fill="#1f2937" font-weight="700" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace">make switch IDP=entra</text>
+  <text x="1138" y="783" font-size="12.5" fill="#6b7280">Browser and APIs then</text>
+  <text x="1138" y="802" font-size="12.5" fill="#6b7280">talk to the cloud IdP</text>
+  <text x="1138" y="821" font-size="12.5" fill="#6b7280">directly (dashed lines).</text>
+  <path d="M150,320 V110 H1245.0 V140" fill="none" stroke="#16a34a" stroke-width="1.6" stroke-linejoin="round" stroke-dasharray="6 5" marker-end="url(#arr-green)"/>
+  <text x="635.0" y="104" font-size="12.5" fill="#16a34a" text-anchor="middle">sign-in + tokens when IDP=entra | oracle</text>
+  <line x1="1060" y1="411.0" x2="1120" y2="411.0" stroke="#16a34a" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#arr-green)"/>
+  <text x="1090.0" y="403.0" font-size="12" fill="#16a34a" text-anchor="middle">JWKS</text>
+  <line x1="1060" y1="485.0" x2="1120" y2="485.0" stroke="#16a34a" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#arr-green)"/>
+  <text x="1090.0" y="477.0" font-size="12" fill="#16a34a" text-anchor="middle">JWKS</text>
+
+  <!-- legend -->
+  <g><circle cx="60" cy="934" r="12" fill="#d97706"/><text x="60" y="938.5" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">1</text></g>
+  <text x="80" y="938.5" font-size="12.5" fill="#1f2937">Browser signs in at the IdP (code flow + PKCE) and receives tokens</text>
+  <g><circle cx="595.2" cy="934" r="12" fill="#d97706"/><text x="595.2" y="938.5" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">2</text></g>
+  <text x="615.2" y="938.5" font-size="12.5" fill="#1f2937">Browser (or the Next.js BFF) calls the APIs with Authorization: Bearer &lt;JWT&gt;</text>
+  <g><circle cx="60" cy="964" r="12" fill="#16a34a"/><text x="60" y="968.5" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">3</text></g>
+  <text x="80" y="968.5" font-size="12.5" fill="#1f2937">APIs validate the JWT with the IdP's JWKS — signature, iss, aud, exp, roles</text>
+  <g><circle cx="660.0" cy="964" r="12" fill="#16a34a"/><text x="660.0" y="968.5" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">4</text></g>
+  <text x="680.0" y="968.5" font-size="12.5" fill="#1f2937">Cloud IdPs: same images, other ConfigMap (make switch IDP=entra)</text>
+</svg>
