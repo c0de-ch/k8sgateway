@@ -1,0 +1,440 @@
+<!doctype html>
+<!--
+  Presentation video: authentication and authorization with OpenID Connect for
+  applications on Kubernetes. Three parts, each = title card, sequence-flow
+  diagram, animated stage, the diagram again:
+    Part 1  Setup           (IdP keys, client registration, configuration, discovery)
+    Part 2  Login           (browser, gateway, application, IdP - no API)
+    Part 3  Using the APIs  (client with a token, gateway, REST/GraphQL API, IdP - no application)
+  Generic names only (Kubernetes cluster, app.example.com, api.example.com, idp.example.com).
+  render(t) draws second t; render from the repo root with
+    GIF=0 node docs/images/animation/render.mjs docs/images/presentation/auth-presentation.html docs/images/presentation/auth-presentation.gif
+-->
+<meta charset="utf-8">
+<title>OpenID Connect on Kubernetes - setup, login, using the APIs</title>
+<style>
+  html, body { margin: 0; background: #f8fafc; font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  svg { display: block; width: 1400px; height: 740px; }
+  .box { fill: #ffffff; stroke-width: 2; rx: 12; }
+  .title { font-size: 15px; font-weight: 700; fill: #1f2937; }
+  .sub { font-size: 11.5px; fill: #6b7280; }
+  .slot { font-size: 12.5px; fill: #1f2937; }
+  .slot-label { font-size: 11px; fill: #6b7280; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .caption { font-size: 15px; fill: #1f2937; }
+  .phase { font-size: 11px; font-weight: 700; fill: #ffffff; letter-spacing: .5px; }
+  .packet { font-size: 12px; fill: #1f2937; }
+  .lane { stroke: #e5e7eb; stroke-width: 1.5; stroke-dasharray: 4 4; }
+  .lane-label { font-size: 10.5px; fill: #9ca3af; }
+  .op { font-size: 12.5px; fill: #111827; }
+  .op-num { font-size: 11px; font-weight: 700; }
+  .op-head { font-size: 11px; font-weight: 700; letter-spacing: 1px; fill: #6b7280; }
+  .seq-title { font-size: 26px; font-weight: 700; fill: #1f2937; }
+  .seq-sub { font-size: 14px; fill: #6b7280; }
+  .seq-part { font-size: 13px; font-weight: 700; fill: #ffffff; }
+  .seq-msg { font-size: 12.5px; fill: #1f2937; }
+  .seq-note { font-size: 11.5px; fill: #6b7280; font-style: italic; }
+  .card-title { font-size: 44px; font-weight: 800; fill: #0f172a; }
+  .card-sub { font-size: 20px; fill: #475569; }
+  .card-part { font-size: 16px; font-weight: 700; fill: #ffffff; letter-spacing: 2px; }
+</style>
+<svg id="scene" viewBox="0 0 1400 740" xmlns="http://www.w3.org/2000/svg"></svg>
+<script>
+const NS = 'http://www.w3.org/2000/svg';
+const svg = document.getElementById('scene');
+const el = (tag, attrs = {}, text, parent = svg) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); if (text !== undefined) e.textContent = text; parent.appendChild(e); return e; };
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const ease = p => p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+const lerp = (a, b, p) => a + (b - a) * p;
+const COLORS = { browser: '#2563eb', client: '#2563eb', admin: '#475569', gateway: '#0ea5e9', app: '#7c3aed', api: '#9333ea', idp: '#16a34a' };
+const PARTC = { 1: '#0f766e', 2: '#2563eb', 3: '#7c3aed' };
+// arrow markers
+const defs = el('defs');
+for (const [id, color] of [['arrow', '#334155'], ['arrowg', '#16a34a'], ['arrowb', '#2563eb'], ['arrowr', '#dc2626']]) {
+  const m = el('marker', { id, viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 8, markerHeight: 8, orient: 'auto-start-reverse' }, undefined, defs);
+  el('path', { d: 'M0 0 L10 5 L0 10 z', fill: color }, undefined, m);
+}
+
+// =============================== title cards =========================================
+function card(part, title, subtitle, lines = []) {
+  const g = el('g', { opacity: 0 });
+  el('rect', { x: 0, y: 0, width: 1400, height: 740, fill: '#f8fafc' }, undefined, g);
+  el('rect', { x: 0, y: 0, width: 1400, height: 10, fill: part ? PARTC[part] : '#0f172a' }, undefined, g);
+  if (part) {
+    el('rect', { x: 560, y: 250, width: 280, height: 34, rx: 17, fill: PARTC[part] }, undefined, g);
+    el('text', { class: 'card-part', x: 700, y: 273, 'text-anchor': 'middle' }, `PART ${part} OF 3`, g);
+  }
+  el('text', { class: 'card-title', x: 700, y: part ? 350 : 320, 'text-anchor': 'middle' }, title, g);
+  el('text', { class: 'card-sub', x: 700, y: part ? 392 : 366, 'text-anchor': 'middle' }, subtitle, g);
+  lines.forEach((l, i) => el('text', { class: 'card-sub', x: 700, y: (part ? 450 : 430) + i * 30, 'text-anchor': 'middle', fill: '#334155' }, l, g));
+  return g;
+}
+const cards = {
+  intro: card(0, 'OpenID Connect on Kubernetes', 'How an application and its APIs authenticate users with an identity provider', ['1  Setup', '2  Login to the application', '3  Using the REST and GraphQL APIs']),
+  p1: card(1, 'Setup', 'Keys, client registration, configuration and discovery - done once', ['Nothing secret is copied except the confidential client\'s client_secret.']),
+  p2: card(2, 'Login to the application', 'Authorization Code flow with PKCE (OAuth 2.1) + ID token and claims (OIDC)', ['The user authenticates at the identity provider, never in the application.']),
+  p3: card(3, 'Using the REST and GraphQL APIs', 'Bearer tokens, verification with public keys, roles and per-field authorization', ['Every request is verified locally by the API; the gateway may pre-check it.']),
+  end: card(0, 'Summary', 'Private key at the identity provider · public keys everywhere · claims and roles defined at the IdP', ['Setup once, then every login and every API call follows the same verifiable pattern.']),
+};
+
+// =============================== sequence diagrams ===================================
+// spec: { part, title, subtitle, participants: [[key, label, sublabel]], messages: [[from, to, text, note?]] }
+function seqDiagram(spec) {
+  const g = el('g', { opacity: 0 });
+  el('rect', { x: 0, y: 0, width: 1400, height: 740, fill: '#f8fafc' }, undefined, g);
+  el('rect', { x: 40, y: 26, width: 92, height: 26, rx: 13, fill: PARTC[spec.part] }, undefined, g);
+  el('text', { class: 'seq-part', x: 86, y: 44, 'text-anchor': 'middle' }, `PART ${spec.part}`, g);
+  el('text', { class: 'seq-title', x: 150, y: 46 }, spec.title, g);
+  el('text', { class: 'seq-sub', x: 150, y: 68 }, spec.subtitle, g);
+  const n = spec.participants.length, left = 120, right = 1280, step = (right - left) / (n - 1);
+  const X = {}; const TOP = 100, BOTTOM = 712;
+  spec.participants.forEach(([key, label, sub], i) => {
+    const x = left + i * step; X[key] = x;
+    el('line', { x1: x, y1: TOP + 50, x2: x, y2: BOTTOM, stroke: '#cbd5e1', 'stroke-width': 1.5, 'stroke-dasharray': '5 5' }, undefined, g);
+    el('rect', { x: x - 95, y: TOP, width: 190, height: 50, rx: 10, fill: '#ffffff', stroke: COLORS[key], 'stroke-width': 2 }, undefined, g);
+    el('rect', { x: x - 95, y: TOP, width: 190, height: 5, rx: 2, fill: COLORS[key] }, undefined, g);
+    el('text', { class: 'title', x, y: TOP + 26, 'text-anchor': 'middle' }, label, g);
+    el('text', { class: 'sub', x, y: TOP + 42, 'text-anchor': 'middle' }, sub, g);
+  });
+  const m = spec.messages.length, y0 = TOP + 78, dy = (BOTTOM - 14 - y0) / m;
+  spec.messages.forEach(([from, to, text, kind], i) => {
+    const y = y0 + i * dy + 12;
+    const color = kind === 'secret' ? '#dc2626' : kind === 'pubkey' ? '#16a34a' : kind === 'signed' ? '#b45309' : '#334155';
+    const marker = kind === 'secret' ? 'url(#arrowr)' : kind === 'pubkey' ? 'url(#arrowg)' : 'url(#arrow)';
+    const label = `${i + 1}. ${text}`, approx = label.length * 6.7;
+    if (from === to) { // self message: loop on the side that has room, label next to it
+      const x = X[from], leftSide = x + 50 + approx > 1360;
+      const d = leftSide ? `M${x} ${y - 8} h -34 v 18 h 30` : `M${x} ${y - 8} h 34 v 18 h -30`;
+      el('path', { d, fill: 'none', stroke: color, 'stroke-width': 1.6, 'marker-end': marker }, undefined, g);
+      el('text', { class: 'seq-msg', x: leftSide ? x - 42 : x + 42, y: y + 6, fill: color, 'text-anchor': leftSide ? 'end' : 'start' }, label, g);
+      return;
+    }
+    const x1 = X[from], x2 = X[to], both = kind === 'both';
+    el('line', { x1: x1 + (x2 > x1 ? 6 : -6), y1: y, x2: x2 + (x2 > x1 ? -6 : 6), y2: y, stroke: color, 'stroke-width': 1.6, 'marker-end': marker, ...(both ? { 'marker-start': marker } : {}), ...(kind === 'dashed' ? { 'stroke-dasharray': '6 4' } : {}) }, undefined, g);
+    let lx = (x1 + x2) / 2, anchor = 'middle';   // keep long labels on the canvas
+    if (lx - approx / 2 < 50) { lx = 50; anchor = 'start'; } else if (lx + approx / 2 > 1350) { lx = 1350; anchor = 'end'; }
+    el('text', { class: 'seq-msg', x: lx, y: y - 6, 'text-anchor': anchor, fill: color }, label, g);
+  });
+  if (spec.footer) el('text', { class: 'seq-note', x: 700, y: BOTTOM + 18, 'text-anchor': 'middle' }, spec.footer, g);
+  return g;
+}
+const diagrams = {
+  1: seqDiagram({ part: 1, title: 'Setup - done once', subtitle: 'Identity provider, client registration, configuration, discovery and public keys',
+    participants: [['admin', 'Administrator', 'sets things up'], ['idp', 'Identity provider', 'Keycloak · Entra ID · Oracle IAM'], ['gateway', 'Gateway / Ingress', 'edge of the cluster'], ['app', 'Application pod', 'BFF or SPA'], ['api', 'API pod', 'REST / GraphQL']],
+    messages: [
+      ['admin', 'idp', 'create users, roles and groups (alice: admin, user)'],
+      ['idp', 'idp', 'generate signing key pair · publish discovery + /jwks (public keys)'],
+      ['admin', 'idp', 'register the application: client_id, exact redirect_uri, confidential → client_secret (SPA: public + PKCE)'],
+      ['admin', 'app', 'OIDC_ISSUER, OIDC_CLIENT_ID (ConfigMap) · OIDC_CLIENT_SECRET (Secret)', 'secret'],
+      ['admin', 'api', 'OIDC_ISSUER, OIDC_AUDIENCE, ROLES_CLAIM (ConfigMap)'],
+      ['admin', 'gateway', 'routes: app.example.com → application, api.example.com → API (HTTPRoute / Ingress)'],
+      ['app', 'idp', 'GET /.well-known/openid-configuration → endpoints (authorize, token, userinfo, jwks_uri, end_session)'],
+      ['app', 'idp', 'GET /jwks → public keys, cached by kid', 'pubkey'],
+      ['api', 'idp', 'GET discovery + /jwks → public keys, cached by kid', 'pubkey'],
+    ], footer: 'The private key never leaves the identity provider. Application and API only hold public keys and their own configuration.' }),
+  2: seqDiagram({ part: 2, title: 'Login to the application', subtitle: 'Authorization Code flow with PKCE (OAuth 2.1), ID token and claims (OpenID Connect)',
+    participants: [['browser', 'Browser', 'the user'], ['gateway', 'Gateway / Ingress', 'app.example.com'], ['app', 'Application pod', 'confidential client (BFF)'], ['idp', 'Identity provider', 'idp.example.com']],
+    messages: [
+      ['browser', 'app', 'GET /dashboard (through the gateway) - no session cookie'],
+      ['app', 'browser', '302 → /authorize: client_id, redirect_uri, scope=openid profile email, state, nonce, code_challenge (S256)'],
+      ['browser', 'idp', 'GET /authorize - the login page of the identity provider'],
+      ['browser', 'idp', 'user authenticates: password, MFA, SSO · consent', 'both'],
+      ['idp', 'browser', '302 redirect_uri?code=…&state=… (one-time code)'],
+      ['browser', 'app', 'GET /callback?code&state (through the gateway) - state ✓'],
+      ['app', 'idp', 'POST /token: code + code_verifier + client_id + client_secret (back channel)', 'secret'],
+      ['idp', 'app', 'access_token (JWT) · id_token (JWT) · refresh_token - signed with the private key', 'signed'],
+      ['app', 'app', 'verify id_token: signature (public key), iss, aud = client_id, nonce → claims: sub, name, email, roles / groups'],
+      ['app', 'idp', 'GET /userinfo (optional): more claims, e.g. groups', 'dashed'],
+      ['app', 'browser', '302 /dashboard + Set-Cookie: session (encrypted, HttpOnly)'],
+      ['browser', 'app', 'GET /dashboard with the cookie → page rendered with name and roles'],
+    ], footer: 'OAuth 2.1: code flow + PKCE only, exact redirect URI, rotated refresh tokens. OIDC adds the ID token, the nonce and the userinfo endpoint.' }),
+  3: seqDiagram({ part: 3, title: 'Using the REST and GraphQL APIs', subtitle: 'Bearer tokens, verification with public keys, roles and per-field authorization',
+    participants: [['client', 'Client', 'SPA or BFF with an access token'], ['gateway', 'Gateway / Ingress', 'api.example.com'], ['api', 'API pod', 'REST / GraphQL'], ['idp', 'Identity provider', 'idp.example.com']],
+    messages: [
+      ['client', 'gateway', 'GET /api/orders   Authorization: Bearer <access_token>', 'signed'],
+      ['gateway', 'gateway', 'optional JWT policy: signature via /jwks, iss, aud → forward or 401'],
+      ['gateway', 'api', 'forward the request with the token'],
+      ['api', 'idp', 'GET /jwks once per unknown kid → public keys (cached)', 'pubkey'],
+      ['api', 'api', 'verify signature, iss, aud, exp/nbf · roles from ROLES_CLAIM → authorize the route'],
+      ['api', 'client', '200 OK [orders]   ·   401 invalid_token   ·   403 forbidden (missing role)'],
+      ['client', 'api', 'POST /graphql { orders { … } adminStats { … } }   Bearer <access_token>', 'signed'],
+      ['api', 'api', 'GraphQL: user from the token in the context · per-field checks: orders ✓ (user) · adminStats ✗ FORBIDDEN (admin)'],
+      ['api', 'client', '200 { data: { orders: [...], adminStats: null }, errors: [FORBIDDEN] } - partial result'],
+      ['client', 'idp', 'when the access token expires: refresh_token → new access_token (rotated)', 'dashed'],
+    ], footer: 'The API is the last line of defence: it verifies every request itself, whatever the gateway did before.' }),
+};
+
+// =============================== animated stages =====================================
+function makeStage(cfg) {
+  const g = el('g', { opacity: 0 });
+  const add = (tag, attrs, text, parent = g) => el(tag, attrs, text, parent);
+  // operations list
+  add('rect', { x: 20, y: 60, width: 312, height: 560, rx: 14, fill: '#ffffff', stroke: '#e5e7eb' });
+  add('text', { class: 'title', x: 38, y: 90 }, 'Operations');
+  add('text', { class: 'sub', x: 38, y: 108 }, 'black = pending · highlighted = in progress · green = done');
+  const opRows = []; let oy = 140;
+  cfg.ops.forEach((label, i) => {
+    const row = add('g', {});
+    const bg = add('rect', { x: 30, y: oy - 13, width: 292, height: 30, rx: 8, fill: 'transparent' }, undefined, row);
+    const badge = add('circle', { cx: 50, cy: oy + 1, r: 10, fill: 'none', stroke: '#111827', 'stroke-width': 1.5 }, undefined, row);
+    const num = add('text', { class: 'op-num', x: 50, y: oy + 5, 'text-anchor': 'middle', fill: '#111827' }, String(i + 1), row);
+    const txt = add('text', { class: 'op', x: 68, y: oy + 5 }, label, row);
+    opRows.push({ bg, badge, num, txt }); oy += 40;
+  });
+  // cluster + parties
+  add('rect', { x: cfg.cluster.x, y: 60, width: cfg.cluster.w, height: 555, rx: 18, fill: '#eef2f7', stroke: '#64748b', 'stroke-dasharray': '8 6', 'stroke-width': 2 });
+  add('text', { x: cfg.cluster.x + 16, y: 88, 'font-size': '17px', 'font-weight': '700', fill: '#334155' }, 'Kubernetes cluster');
+  add('text', { class: 'sub', x: cfg.cluster.x + 16, y: 106 }, cfg.cluster.sub);
+  const BOX_Y = 118, BOX_H = 296;
+  const P = cfg.parties;
+  for (const p of Object.values(P)) {
+    p.cx = p.x + p.w / 2;
+    p.rect = add('rect', { class: 'box', x: p.x, y: BOX_Y, width: p.w, height: BOX_H, stroke: p.color });
+    add('rect', { x: p.x, y: BOX_Y, width: p.w, height: 6, fill: p.color, rx: 3 });
+    add('text', { class: 'title', x: p.x + 12, y: BOX_Y + 28 }, p.title);
+    add('text', { class: 'sub', x: p.x + 12, y: BOX_Y + 45 }, p.sub);
+    p.lines = []; p.labels = [];
+    for (let i = 0; i < 12; i++) p.lines.push(add('text', { class: 'slot' + (p.mono === false ? '' : ' mono'), x: p.x + 12, y: BOX_Y + 72 + i * 17 }, ''));
+  }
+  const keys = {};
+  if (P.idp) {
+    const kf = (x, y, color, label) => { const kg = add('g', { transform: `translate(${x},${y})` }); add('circle', { cx: 0, cy: 0, r: 5.5, fill: 'none', stroke: color, 'stroke-width': 2.5 }, undefined, kg); add('path', { d: 'M5.5 0 H20 M14 0 V4.5 M18 0 V3.5', stroke: color, 'stroke-width': 2.5, fill: 'none', 'stroke-linecap': 'round' }, undefined, kg); add('text', { class: 'slot', x: 27, y: 4.5 }, label, kg); return kg; };
+    keys.priv = kf(P.idp.x + 18, BOX_Y + 72, '#dc2626', 'private key (signs tokens)');
+    keys.pub = kf(P.idp.x + 18, BOX_Y + 96, '#16a34a', 'public keys → /jwks');
+    P.idp.lines.forEach((t, i) => t.setAttribute('y', BOX_Y + 124 + i * 17));
+  }
+  // lanes
+  const LANES = cfg.lanes;
+  for (const [name, y, label] of LANES) { add('line', { class: 'lane', x1: 365, y1: y, x2: 1380, y2: y }); add('text', { class: 'lane-label', x: 365, y: y - 7 }, label); }
+  const laneY = Object.fromEntries(LANES.map(([n, y]) => [n, y]));
+  const packets = [];
+  for (const [from, to, lane, t0, t1, label, kind = 'plain'] of cfg.packets) {
+    const pg = add('g', { opacity: 0 });
+    const w = Math.max(140, label.length * 7.3 + 46 + (kind !== 'plain' ? 26 : 0));
+    const stroke = { plain: '#2563eb', signed: '#d97706', pubkey: '#16a34a', secret: '#dc2626', denied: '#dc2626' }[kind];
+    const fill = { plain: '#eff6ff', signed: '#fffbeb', pubkey: '#f0fdf4', secret: '#fef2f2', denied: '#fef2f2' }[kind];
+    add('rect', { x: -w / 2, y: -16, width: w, height: 32, rx: 16, fill, stroke, 'stroke-width': 1.5 }, undefined, pg);
+    add('text', { class: 'packet mono', 'text-anchor': 'middle', y: 4.5, x: kind !== 'plain' ? 10 : 0 }, label, pg);
+    if (kind !== 'plain') {
+      add('circle', { cx: -w / 2 + 16, cy: 0, r: 8.5, fill: stroke }, undefined, pg);
+      add('text', { x: -w / 2 + 16, y: 3.5, 'text-anchor': 'middle', 'font-size': kind === 'pubkey' || kind === 'denied' ? '10' : '8', 'font-weight': '700', fill: '#fff' }, { signed: 'sig', pubkey: 'pk', secret: 'sec', denied: '✗' }[kind], pg);
+    }
+    const dir = P[to].cx > P[from].cx ? 1 : -1;
+    add('path', { d: `M${dir * (w / 2)} -6 l${dir * 9} 6 l${dir * -9} 6`, fill: 'none', stroke, 'stroke-width': 2 }, undefined, pg);
+    packets.push({ g: pg, from, to, lane, t0, t1, w });
+  }
+  add('text', { class: 'sub', x: 365, y: 636 }, cfg.legend);
+  const bar = add('rect', { x: 20, y: 648, width: 1365, height: 62, rx: 10, fill: '#ffffff', stroke: '#e5e7eb' });
+  const badge = add('rect', { x: 30, y: 667, width: 82, height: 24, rx: 12, fill: PARTC[cfg.part] });
+  const badgeText = add('text', { class: 'phase', x: 71, y: 683, 'text-anchor': 'middle' }, '');
+  const capText = add('text', { class: 'caption', x: 124, y: 674 }, '');
+  const capText2 = add('text', { class: 'caption', x: 124, y: 696 }, '');
+  const wrap = (text, max = 150) => { // split once at a word boundary near the middle when too long
+    if (text.length <= max) return [text, ''];
+    const cut = text.lastIndexOf(' ', Math.ceil(text.length / 2) + 20);
+    return [text.slice(0, cut), text.slice(cut + 1)];
+  };
+  const DURATION = cfg.duration;
+  function render(t) { // t = local seconds
+    const cap = cfg.captions.find(c => t >= c[0] && t < c[1]) || cfg.captions[cfg.captions.length - 1];
+    const [, , step, text] = cap;
+    badgeText.textContent = step ? `STEP ${step}` : ''; badge.setAttribute('opacity', step ? 1 : 0);
+    const [l1, l2] = wrap(text);
+    capText.textContent = l1; capText2.textContent = l2;
+    for (const c of [capText, capText2]) { c.setAttribute('x', step ? 124 : 34); c.setAttribute('font-size', '14.5px'); }
+    capText.setAttribute('y', l2 ? 674 : 685);
+    opRows.forEach((r, i) => {
+      const c = cfg.captions.find(x => x[2] === i + 1); if (!c) return;
+      const done = t >= c[1], active = t >= c[0] && t < c[1];
+      r.bg.setAttribute('fill', active ? '#dbeafe' : 'transparent'); r.bg.setAttribute('stroke', active ? '#2563eb' : 'none');
+      r.txt.setAttribute('fill', done ? '#15803d' : active ? '#1d4ed8' : '#111827'); r.txt.setAttribute('font-weight', active ? '700' : '400');
+      r.badge.setAttribute('fill', done ? '#16a34a' : active ? '#2563eb' : 'none'); r.badge.setAttribute('stroke', done ? '#16a34a' : active ? '#2563eb' : '#111827');
+      r.num.setAttribute('fill', done || active ? '#ffffff' : '#111827'); r.num.textContent = done ? '✓' : String(i + 1);
+    });
+    const state = cfg.state(t);
+    for (const [k, p] of Object.entries(P)) { const arr = state[k] || []; p.lines.forEach((tt, i) => { tt.textContent = arr[i] ?? ''; }); }
+    if (keys.priv) { keys.priv.setAttribute('transform', `translate(${P.idp.x + 18},${BOX_Y + 72}) scale(${state.privActive ? 1.3 : 1})`); keys.pub.setAttribute('transform', `translate(${P.idp.x + 18},${BOX_Y + 96}) scale(${state.pubActive ? 1.3 : 1})`); }
+    for (const p of packets) {
+      if (t < p.t0 || t > p.t1 + 0.4) { p.g.setAttribute('opacity', 0); continue; }
+      const prog = ease(clamp((t - p.t0) / (p.t1 - p.t0), 0, 1));
+      const x = clamp(lerp(P[p.from].cx, P[p.to].cx, prog), 369 + p.w / 2, 1376 - p.w / 2);
+      p.g.setAttribute('opacity', t > p.t1 ? 1 - (t - p.t1) / 0.4 : Math.min(1, (t - p.t0) / 0.3));
+      p.g.setAttribute('transform', `translate(${x},${laneY[p.lane]})`);
+    }
+    for (const p of Object.values(P)) p.rect.setAttribute('stroke-width', 2);
+    if (state.active && P[state.active]) P[state.active].rect.setAttribute('stroke-width', 4);
+    if (P.gateway) { const via = packets.some(p => t >= p.t0 && t <= p.t1 && p.lane === 'req'); if (via) P.gateway.rect.setAttribute('stroke-width', 4); }
+  }
+  return { g, render, duration: DURATION };
+}
+
+// ---- Part 1: setup (no browser) ---------------------------------------------------
+const stage1 = makeStage({
+  part: 1, duration: 52,
+  cluster: { x: 400, w: 750, sub: 'app.example.com and api.example.com enter through the gateway' },
+  parties: {
+    gateway: { x: 416, w: 150, color: COLORS.gateway, title: 'Gateway / Ingress', sub: 'edge of the cluster', mono: false },
+    app:     { x: 586, w: 260, color: COLORS.app, title: 'Application pod', sub: 'BFF (confidential) or SPA (public)' },
+    api:     { x: 866, w: 268, color: COLORS.api, title: 'API pod', sub: 'REST / GraphQL resource server' },
+    idp:     { x: 1160, w: 230, color: COLORS.idp, title: 'Identity provider', sub: 'Keycloak · Entra ID · Oracle IAM' },
+  },
+  lanes: [['back', 500, 'back channel (server to server)'], ['admin', 560, 'administration (once)']],
+  ops: ['IdP publishes discovery + JWKS', 'Register the application client', 'Configure app + API (ConfigMap/Secret)', 'Gateway routes: host → Service', 'App fetches discovery + public keys', 'API fetches discovery + public keys'],
+  captions: [
+    [0, 3, 0, 'Setup is done once by an administrator. Afterwards the application and the API can verify tokens on their own.'],
+    [3, 9, 1, 'The identity provider owns a signing key pair, keeps users, roles and groups, and publishes its endpoints and PUBLIC keys.'],
+    [9, 17, 2, 'The application is registered as a client: client_id, exact redirect_uri, and - for a confidential client - a client_secret. A SPA gets none (PKCE).'],
+    [17, 25, 3, 'Application and API receive only configuration: issuer URL, client id, audience, roles claim; the secret goes into a Kubernetes Secret.'],
+    [25, 31, 4, 'The gateway routes the hostnames to the Services (HTTPRoute or Ingress). No authentication logic lives here unless you add a JWT policy.'],
+    [31, 41, 5, 'At start the application fetches the discovery document and the public keys from the issuer. It learns endpoints, it never receives a private key.'],
+    [41, 49, 6, 'The API does the same: discovery and public keys, cached by kid. From now on it can verify signatures offline.'],
+    [49, 52, 0, 'Result: private key at the IdP, public keys in app and API, one shared client_secret for the BFF, routes at the gateway.'],
+  ],
+  packets: [
+    ['idp', 'app', 'admin', 10, 14, 'client_id=web-app · client_secret · redirect_uri (registered at the IdP)', 'secret'],
+    ['idp', 'app', 'admin', 18, 21, 'ConfigMap: OIDC_ISSUER, OIDC_CLIENT_ID · Secret: OIDC_CLIENT_SECRET', 'secret'],
+    ['idp', 'api', 'admin', 21.5, 24.5, 'ConfigMap: OIDC_ISSUER, OIDC_AUDIENCE=api, ROLES_CLAIM'],
+    ['app', 'idp', 'back', 32, 34.5, 'GET /.well-known/openid-configuration'],
+    ['idp', 'app', 'back', 35, 37.5, 'endpoints: authorize, token, userinfo, jwks_uri, end_session'],
+    ['app', 'idp', 'back', 37.8, 38.8, 'GET /jwks'],
+    ['idp', 'app', 'back', 39, 40.8, 'JWKS { kid: nPy6…, kty: RSA, n, e }', 'pubkey'],
+    ['api', 'idp', 'back', 42, 44, 'GET discovery + /jwks'],
+    ['idp', 'api', 'back', 44.5, 47, 'JWKS { kid: nPy6…, kty: RSA, n, e }', 'pubkey'],
+  ],
+  legend: 'sec = carries a secret (client_secret)  ·  pk = public key (JWKS)  ·  the private key is never transmitted',
+  state: t => ({
+    active: t < 3 ? null : t < 17 ? 'idp' : t < 25 ? 'app' : t < 31 ? 'gateway' : t < 41 ? 'app' : t < 49 ? 'api' : null,
+    privActive: t >= 3 && t < 6, pubActive: (t >= 39 && t < 41) || (t >= 44.5 && t < 47),
+    idp: [t >= 4 ? 'issuer https://idp.example.com' : '', t >= 5.5 ? 'discovery doc published' : '', t >= 6.5 ? '/jwks: public keys' : '', t >= 8 ? 'alice: roles admin, user' : '', t >= 8 ? '  groups: platform-admins' : '', t >= 12 ? 'client: web-app' : '', t >= 13 ? '  redirect_uri exact, secret' : ''],
+    app: [t >= 20 ? 'OIDC_ISSUER=https://idp.example.com' : '', t >= 20.5 ? 'OIDC_CLIENT_ID=web-app' : '', t >= 21 ? 'CLIENT_SECRET=●●●● (Secret)' : '', '', t >= 37.5 ? 'endpoints: authorize, token…' : '', t >= 40.8 ? 'public key kid=nPy6… cached' : '', t >= 40.8 ? 'ready: can verify ID tokens' : ''],
+    api: [t >= 24 ? 'OIDC_ISSUER=https://idp.example.com' : '', t >= 24.3 ? 'OIDC_AUDIENCE=api' : '', t >= 24.6 ? 'ROLES_CLAIM=roles' : '', '', t >= 47 ? 'public key kid=nPy6… cached' : '', t >= 47 ? 'ready: verifies tokens offline' : ''],
+    gateway: [t >= 26 ? 'HTTPRoute / Ingress' : '', t >= 27 ? 'app.example.com' : '', t >= 27 ? '  → application:3000' : '', t >= 28.5 ? 'api.example.com' : '', t >= 28.5 ? '  → api:8080' : ''],
+  }),
+});
+
+// ---- Part 2: login (no API) ---------------------------------------------------------
+const stage2 = makeStage({
+  part: 2, duration: 92,
+  cluster: { x: 560, w: 570, sub: 'app.example.com enters through the gateway; the pod reaches the IdP directly' },
+  parties: {
+    browser: { x: 365, w: 175, color: COLORS.browser, title: 'Browser', sub: 'the user, outside the cluster', mono: false },
+    gateway: { x: 576, w: 150, color: COLORS.gateway, title: 'Gateway / Ingress', sub: 'app.example.com', mono: false },
+    app:     { x: 746, w: 366, color: COLORS.app, title: 'Application pod', sub: 'BFF, confidential client (client_id web-app)' },
+    idp:     { x: 1160, w: 230, color: COLORS.idp, title: 'Identity provider', sub: 'idp.example.com' },
+  },
+  lanes: [['req', 468, 'requests through the gateway'], ['back', 518, 'back channel (server to server)'], ['front', 568, 'front channel (browser ↔ IdP)']],
+  ops: ['GET /dashboard → no session → 302', 'User authenticates at the IdP', 'Redirect back: code + state', 'Token exchange: code + PKCE + secret', 'Verify ID token, read claims/roles', 'userinfo: extra claims, groups', 'Session cookie, page with roles'],
+  captions: [
+    [0, 3, 0, 'The user opens the application. Nothing identifies them yet - no cookie, no token.'],
+    [3, 12, 1, 'No session: the app creates state, nonce and a PKCE code_verifier and answers 302 to the IdP with client_id, redirect_uri, scope=openid profile email, state, nonce, code_challenge.'],
+    [12, 22, 2, 'Front channel: the browser is now at the identity provider. The user authenticates there - password, MFA, single sign-on - and consents. The application never sees credentials.'],
+    [22, 31, 3, 'The IdP redirects to the exact registered redirect_uri with a one-time code and the state. The app checks that state matches its transaction.'],
+    [31, 43, 4, 'Back channel: the app posts code + code_verifier + client_id + client_secret. The IdP verifies PKCE and the secret, then signs access token, ID token and refresh token with its PRIVATE key.'],
+    [43, 56, 5, 'OpenID Connect: the app verifies the ID token with the cached PUBLIC key (signature, iss, aud = client_id, nonce) and reads the claims: sub, name, email - and roles or groups the IdP was configured to include.'],
+    [56, 65, 6, 'Optional: GET /userinfo with the access token returns additional claims, for example group memberships, when they are not in the token.'],
+    [65, 80, 7, 'The tokens and claims are sealed into an encrypted HttpOnly session cookie; the browser gets a redirect and the dashboard renders with the user\'s name and roles. Scripts in the page cannot read any token.'],
+    [80, 92, 0, 'OAuth 2.1: only the code flow with PKCE, exact redirect URI, rotated refresh tokens. OIDC: the ID token tells the app WHO logged in; the access token is for the APIs (part 3).'],
+  ],
+  packets: [
+    ['browser', 'app', 'req', 3.5, 6.5, 'GET /dashboard   (no session cookie)'],
+    ['app', 'browser', 'req', 8, 11.5, '302 → /authorize  client_id, redirect_uri, scope, state, nonce, code_challenge'],
+    ['browser', 'idp', 'front', 12.5, 15.5, 'GET /authorize …   (IdP login page)'],
+    ['idp', 'browser', 'front', 23, 26.5, '302 redirect_uri ?code=8f3a… &state=xK9…'],
+    ['browser', 'app', 'req', 27, 30, 'GET /callback ?code &state'],
+    ['app', 'idp', 'back', 32, 35.5, 'POST /token  code + code_verifier + client_id + client_secret', 'secret'],
+    ['idp', 'app', 'back', 39, 42.5, 'access_token (JWT) · id_token (JWT) · refresh_token', 'signed'],
+    ['app', 'idp', 'back', 57, 59.5, 'GET /userinfo   Authorization: Bearer <access_token>', 'signed'],
+    ['idp', 'app', 'back', 60, 63, '{ sub, name, email, groups: [platform-admins] }'],
+    ['app', 'browser', 'req', 66, 69.5, '302 /dashboard  +  Set-Cookie: session=<encrypted>; HttpOnly; Secure'],
+    ['browser', 'app', 'req', 71, 74, 'GET /dashboard   Cookie: session'],
+    ['app', 'browser', 'req', 75.5, 78.5, '200 dashboard: Alice Admin · roles admin, user'],
+  ],
+  legend: 'sig = signed with the IdP private key  ·  sec = carries the client_secret  ·  the browser never holds a token in this (BFF) model',
+  state: t => ({
+    active: t < 3 ? 'browser' : t < 12 ? 'app' : t < 22 ? 'idp' : t < 31 ? 'browser' : t < 43 ? 'idp' : t < 65 ? 'app' : t < 80 ? 'browser' : null,
+    privActive: t >= 36 && t < 39, pubActive: t >= 43 && t < 46,
+    idp: [t >= 13 && t < 22 ? 'login page for client web-app' : '', t >= 15 && t < 22 ? 'alice / •••••• + MFA ✓' : '', t >= 19 && t < 22 ? 'consent: openid profile email' : '', t >= 22 && t < 31 ? 'code issued (single use, 60 s)' : '', t >= 36 && t < 43 ? 'PKCE ✓  secret ✓' : '', t >= 37 && t < 43 ? 'sign tokens (private key)' : '', t >= 57 && t < 65 ? 'userinfo: token ✓ → claims' : ''],
+    app: [t >= 4 ? 'config: issuer, client_id, secret' : '', t >= 4 ? 'public key kid=nPy6… (cached)' : '', t >= 6.5 && t < 31 ? 'txn: state=xK9… nonce=q7… verifier' : (t >= 31 && t < 43 ? 'state ✓ - exchanging the code' : ''), '',
+      t >= 44 ? 'id_token ✓ sig(public key)·iss·aud·nonce' : '', t >= 47 ? 'sub=1bfd…  name=Alice Admin' : '', t >= 49 ? 'email=alice@example.com' : '', t >= 51 ? 'roles=[admin,user]  (IdP mapper)' : '', t >= 63 ? 'groups=[platform-admins] (userinfo)' : '',
+      t >= 65 ? 'session cookie = encrypted tokens+claims' : '', t >= 65 ? 'refresh_token kept server-side' : ''],
+    browser: [t < 3 ? 'no cookie, no token' : t < 12 ? 'redirected…' : t < 22 ? 'at the IdP login page' : t < 31 ? 'code + state received' : t < 65 ? 'waiting for the app…' : 'cookie: session (HttpOnly)', t >= 74 ? 'Dashboard: Alice Admin' : '', t >= 74 ? 'badges: admin · user' : '', t >= 76 ? 'no token readable by scripts' : ''],
+    gateway: ['host app.example.com', '→ application pod', '', 'no auth logic here', '(routes only)'],
+  }),
+});
+
+// ---- Part 3: APIs (no application) ----------------------------------------------------
+const stage3 = makeStage({
+  part: 3, duration: 78,
+  cluster: { x: 560, w: 570, sub: 'api.example.com enters through the gateway; the API reaches the IdP directly' },
+  parties: {
+    client:  { x: 365, w: 175, color: COLORS.client, title: 'Client', sub: 'SPA or BFF with an access token', mono: false },
+    gateway: { x: 576, w: 150, color: COLORS.gateway, title: 'Gateway / Ingress', sub: 'api.example.com', mono: false },
+    api:     { x: 746, w: 366, color: COLORS.api, title: 'API pod', sub: 'REST and GraphQL resource server' },
+    idp:     { x: 1160, w: 230, color: COLORS.idp, title: 'Identity provider', sub: 'idp.example.com' },
+  },
+  lanes: [['req', 468, 'requests through the gateway'], ['back', 518, 'back channel (server to server)']],
+  ops: ['Bearer call through the gateway', 'Gateway JWT pre-check (optional)', 'API fetches public keys (once)', 'Verify signature, iss, aud, exp, roles', 'REST: 200 · 401 · 403', 'GraphQL: per-field authorization', 'Refresh when the token expires'],
+  captions: [
+    [0, 3, 0, 'The client already holds an access token from the login (part 2). Every API call carries it as a bearer token.'],
+    [3, 10, 1, 'GET /api/orders with Authorization: Bearer <access_token>. The token is a signed JWT: header (alg, kid), payload (iss, aud, exp, sub, roles), signature.'],
+    [10, 18, 2, 'Optional: a JWT policy at the gateway (Envoy Gateway SecurityPolicy) verifies the signature with the same public keys and rejects invalid tokens with 401 before they reach a pod.'],
+    [18, 26, 3, 'The API sees an unknown kid the first time and fetches the public keys from the IdP\'s /jwks. They are cached; later requests need no round trip.'],
+    [26, 38, 4, 'Verification, on every request and offline: signature with the public key, iss = the configured issuer, aud contains the API\'s audience, exp/nbf with a small clock skew, then the roles from ROLES_CLAIM.'],
+    [38, 49, 5, 'REST answers: 200 with data for a valid token and role, 401 invalid_token with a WWW-Authenticate header for a missing or bad token, 403 forbidden for a valid token without the required role.'],
+    [49, 64, 6, 'GraphQL: the user from the token goes into the resolver context; authorization happens per field. orders needs the user role, adminStats the admin role - a user without it gets data for orders and a FORBIDDEN error for adminStats in the same response.'],
+    [64, 72, 7, 'When the access token expires the client (BFF) uses the refresh token: the IdP returns a new access token and rotates the refresh token. The APIs never see refresh tokens.'],
+    [72, 78, 0, 'The API is the last line of defence: it verifies every request itself, whatever the gateway did. Public keys make that possible without contacting the IdP.'],
+  ],
+  packets: [
+    ['client', 'api', 'req', 4, 8, 'GET /api/orders   Authorization: Bearer eyJhbGciOiJSUzI1Ni…', 'signed'],
+    ['api', 'idp', 'back', 19, 21, 'GET /jwks   (unknown kid nPy6…)'],
+    ['idp', 'api', 'back', 21.5, 24, 'JWKS { kid: nPy6…, kty: RSA, n, e }', 'pubkey'],
+    ['api', 'client', 'req', 39.5, 42.5, '200 OK  [ { id: ord-1, item: … } ]'],
+    ['api', 'client', 'req', 44, 47, '401 invalid_token   ·   403 forbidden (role admin missing)', 'denied'],
+    ['client', 'api', 'req', 50, 53.5, 'POST /graphql  { orders { id } adminStats { users } }   Bearer …', 'signed'],
+    ['api', 'client', 'req', 59, 62.5, '200 { data: { orders: [...], adminStats: null }, errors: [FORBIDDEN] }'],
+    ['client', 'idp', 'back', 65, 67.5, 'POST /token  grant_type=refresh_token (BFF, with client_secret)', 'secret'],
+    ['idp', 'client', 'back', 68, 70.5, 'new access_token · NEW refresh_token (old one revoked)', 'signed'],
+  ],
+  legend: 'sig = signed with the IdP private key  ·  pk = public key (JWKS)  ·  ✗ = rejected  ·  sec = carries the client_secret',
+  state: t => ({
+    active: t < 3 ? 'client' : t < 10 ? 'client' : t < 18 ? 'gateway' : t < 26 ? 'idp' : t < 64 ? 'api' : t < 72 ? 'idp' : null,
+    privActive: t >= 67 && t < 68, pubActive: t >= 21 && t < 24,
+    idp: [t >= 19 ? '/jwks served (public, cached)' : '', t >= 65 && t < 72 ? 'refresh_token ✓ → rotate' : '', t >= 68 && t < 72 ? 'sign new access_token' : ''],
+    client: [t < 3 ? 'access_token (JWT, 5 min)' : 'access_token (JWT)', t >= 3 ? 'roles in token: user' : '', t >= 42.5 && t < 49 ? 'orders ✓ 200' : '', t >= 47 && t < 49 ? 'admin route ✗ 403' : '', t >= 62.5 ? 'GraphQL: orders ✓' : '', t >= 62.5 ? '  adminStats ✗ FORBIDDEN' : '', t >= 70.5 ? 'new access_token ✓' : ''],
+    gateway: ['host api.example.com', '→ API pod', '', t >= 10 ? 'SecurityPolicy (opt.):' : '', t >= 11 ? 'signature via /jwks ✓' : '', t >= 12 ? 'iss ✓  aud ✓' : '', t >= 14 && t < 18 ? '→ forward (else 401)' : ''],
+    api: [t >= 8 ? 'Bearer: header alg=RS256 kid=nPy6…' : '', t >= 18 && t < 24 ? 'kid nPy6…: not cached yet' : (t >= 24 ? 'public key kid=nPy6… cached' : ''), '',
+      t >= 27 ? '✓ signature (public key)' : '', t >= 29 ? '✓ iss == https://idp.example.com' : '', t >= 31 ? '✓ aud contains api' : '', t >= 33 ? '✓ exp / nbf (60 s skew)' : '', t >= 35 ? 'roles = [user]  (ROLES_CLAIM)' : '',
+      t >= 38 && t < 49 ? 'GET /api/orders: role user ✓ → 200' : '', t >= 44 && t < 49 ? 'GET /api/admin: role admin ✗ → 403' : '',
+      t >= 53.5 ? 'GraphQL context: user, roles' : '', t >= 55 ? 'orders: user ✓   adminStats: admin ✗' : ''],
+  }),
+});
+
+// =============================== master timeline =======================================
+const DIAGRAM_HOLD = 16, DIAGRAM_HOLD_END = 10, CARD_HOLD = 5;
+const timeline = []; let T = 0;
+const seg = (type, ref, dur, part) => { timeline.push({ type, ref, t0: T, t1: T + dur, part }); T += dur; };
+seg('card', cards.intro, 7);
+for (const [n, stage] of [[1, stage1], [2, stage2], [3, stage3]]) {
+  seg('card', cards['p' + n], CARD_HOLD, n);
+  seg('diagram', diagrams[n], DIAGRAM_HOLD, n);
+  seg('stage', stage, stage.duration, n);
+  seg('diagram', diagrams[n], DIAGRAM_HOLD_END, n);
+}
+seg('card', cards.end, 8);
+const TOTAL = T;
+const progress = el('rect', { x: 0, y: 734, width: 0, height: 6, fill: '#2563eb' });
+const partMarks = el('g');
+timeline.filter(s => s.type === 'card' && s.part).forEach(s => el('rect', { x: 1400 * s.t0 / TOTAL, y: 734, width: 2, height: 6, fill: '#0f172a' }, undefined, partMarks));
+
+function render(t) {
+  const cur = timeline.find(s => t >= s.t0 && t < s.t1) || timeline[timeline.length - 1];
+  for (const s of timeline) { const g = s.type === 'stage' ? s.ref.g : s.ref; g.setAttribute('opacity', s === cur ? 1 : 0); }
+  if (cur.type === 'stage') cur.ref.render(clamp(t - cur.t0, 0, cur.ref.duration));
+  // fade-in at the start of each segment
+  const g = cur.type === 'stage' ? cur.ref.g : cur.ref; g.setAttribute('opacity', Math.min(1, 0.25 + (t - cur.t0) / 0.5));
+  progress.setAttribute('width', 1400 * clamp(t / TOTAL, 0, 1));
+}
+window.render = render; window.TOTAL = TOTAL;
+if (!navigator.webdriver) { const start = performance.now(); (function tick() { render(((performance.now() - start) / 1000) % (TOTAL + 1)); requestAnimationFrame(tick); })(); }
+</script>

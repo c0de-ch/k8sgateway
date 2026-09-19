@@ -17,14 +17,19 @@ const { chromium } = require('playwright');
 
 const FPS = Number(process.env.FPS ?? 16);
 const GIF_FPS = Number(process.env.GIF_FPS ?? 8);
-const SCENE = process.argv[2] ?? 'auth-flow.html';
-const OUT = path.join(here, '..', process.argv[3] ?? SCENE.replace(/\.html$/, '.gif'));
-const frames = path.join(process.env.TMPDIR ?? '/tmp', 'k8sgateway-frames-' + SCENE.replace(/\.html$/, ''));
+// Scene and output: given as paths (relative to the current directory) or as bare
+// file names inside docs/images/animation (scene) and docs/images (output).
+const sceneArg = process.argv[2] ?? 'auth-flow.html';
+const SCENE = sceneArg.includes('/') ? path.resolve(sceneArg) : path.join(here, sceneArg);
+const outArg = process.argv[3] ?? path.basename(SCENE).replace(/\.html$/, '.gif');
+const OUT = outArg.includes('/') ? path.resolve(outArg) : path.join(here, '..', outArg);
+const WANT_GIF = process.env.GIF !== '0';   // GIF=0 -> video only (long presentations)
+const frames = path.join(process.env.TMPDIR ?? '/tmp', 'k8sgateway-frames-' + path.basename(SCENE).replace(/\.html$/, ''));
 rmSync(frames, { recursive: true, force: true }); mkdirSync(frames, { recursive: true });
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1000, height: 560 }, deviceScaleFactor: 1 });
-await page.goto('file://' + path.join(here, SCENE));
+await page.goto('file://' + SCENE);
 const size = await page.evaluate(() => { const r = document.querySelector('svg').getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height) }; });
 await page.setViewportSize({ width: size.w, height: size.h });
 const total = await page.evaluate(() => window.TOTAL);
@@ -35,10 +40,10 @@ for (let i = 0; i <= n; i++) {
 }
 await browser.close();
 // two-pass palette for a small, clean GIF (at GIF_FPS)
-execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', String(FPS), '-i', path.join(frames, 'f%04d.png'),
+if (WANT_GIF) execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', String(FPS), '-i', path.join(frames, 'f%04d.png'),
   '-vf', `fps=${GIF_FPS},split[a][b];[a]palettegen=max_colors=96:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle`,
   '-loop', '0', OUT]);
-console.log(`wrote ${OUT} (${Math.round((n + 1) * GIF_FPS / FPS)} frames at ${GIF_FPS} fps)`);
+if (WANT_GIF) console.log(`wrote ${OUT} (${Math.round((n + 1) * GIF_FPS / FPS)} frames at ${GIF_FPS} fps)`);
 // H.264 video at the full frame rate: pause, scrub and slow down in any player / on GitHub
 const MP4 = OUT.replace(/\.gif$/, '.mp4');
 execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', String(FPS), '-i', path.join(frames, 'f%04d.png'),

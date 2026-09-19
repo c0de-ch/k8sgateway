@@ -39,3 +39,10 @@ stay editable together.
 | [`animation/login-flow-k8s.html`](animation/login-flow-k8s.html) | Its scene; open in a browser to watch it live. |
 | [`animation/auth-flow.html`](animation/auth-flow.html) | The scene (plain SVG + JavaScript, deterministic `render(t)`); open it in a browser to watch it live. |
 | [`animation/render.mjs`](animation/render.mjs) | Captures the frames with Playwright's Chromium (from `e2e/node_modules`) and assembles the GIF (8 fps) and the MP4 video (16 fps) with ffmpeg: `node docs/images/animation/render.mjs [scene.html] [out.gif]`. |
+
+## Presentation
+
+| file | caption |
+|---|---|
+| [`presentation/auth-presentation.mp4`](presentation/auth-presentation.mp4) | A 5½-minute presentation video with generic names: intro, then three parts (Setup · Login to the application · Using the REST and GraphQL APIs), each as title card → sequence-flow diagram → animated stage with an operations checklist → the diagram again, and a summary. See [presentation/README.md](presentation/README.md). |
+| [`presentation/auth-presentation.html`](presentation/auth-presentation.html) | The scene; open in a browser to watch it live, edit to adapt it. |
